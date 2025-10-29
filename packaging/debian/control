@@ -1,0 +1,30 @@
+Source: pgbalancer-postgresql-@PG_VERSION@
+Section: database
+Priority: optional
+Maintainer: pgElephant Team <team@pgelephant.org>
+Build-Depends: debhelper (>= 9), autoconf, automake, libtool, pkg-config,
+ postgresql-server-dev-@PG_VERSION@, libyaml-dev, libssl-dev, libpam0g-dev
+Standards-Version: 3.9.8
+Homepage: https://github.com/pgelephant/pgbalancer
+
+Package: postgresql-@PG_VERSION@-pgbalancer
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, postgresql-@PG_VERSION@,
+ libyaml-0-2, libssl3, libpam0g
+Description: Modern PostgreSQL connection pooler with REST API
+ pgbalancer is a modern, production-ready PostgreSQL connection pooler and
+ load balancer built as a fork of pgpool-II. It provides a comprehensive
+ REST API, professional CLI tool, and YAML configuration support.
+ .
+ Features:
+  * Production HTTP/JSON REST API (17 endpoints)
+  * Unified CLI tool (bctl) replacing pcp_* commands
+  * YAML configuration with validation
+  * Optional pgraft consensus integration
+  * AI-based load balancing algorithms
+  * JWT authentication for API security
+  * Connection pooling and load balancing
+  * Automatic failover and recovery
+  * Health monitoring and performance statistics
+  * Compatible with PostgreSQL 13, 14, 15, 16, 17, 18
+

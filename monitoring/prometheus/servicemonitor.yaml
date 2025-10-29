@@ -1,0 +1,65 @@
+# Prometheus ServiceMonitor for pgbalancer (Kubernetes)
+# Requires prometheus-operator
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: pgbalancer
+  namespace: monitoring
+  labels:
+    app: pgbalancer
+    prometheus: kube-prometheus
+spec:
+  selector:
+    matchLabels:
+      app: pgbalancer
+      component: pooler
+  namespaceSelector:
+    matchNames:
+      - database
+      - production-db
+      - dev-db
+  endpoints:
+  - port: rest-api
+    interval: 15s
+    path: /metrics
+    scheme: http
+    relabelings:
+      - sourceLabels: [__meta_kubernetes_pod_name]
+        targetLabel: pod
+      - sourceLabels: [__meta_kubernetes_pod_node_name]
+        targetLabel: node
+      - sourceLabels: [__meta_kubernetes_namespace]
+        targetLabel: namespace
+    metricRelabelings:
+      - sourceLabels: [__name__]
+        regex: 'pgbalancer_.*'
+        action: keep
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: pgbalancer-pods
+  namespace: monitoring
+  labels:
+    app: pgbalancer
+spec:
+  selector:
+    matchLabels:
+      app: pgbalancer
+  namespaceSelector:
+    matchNames:
+      - database
+      - production-db
+  podMetricsEndpoints:
+  - port: rest-api
+    interval: 15s
+    path: /metrics
+    relabelings:
+      - action: labelmap
+        regex: __meta_kubernetes_pod_label_(.+)
+      - sourceLabels: [__meta_kubernetes_namespace]
+        targetLabel: namespace
+      - sourceLabels: [__meta_kubernetes_pod_name]
+        targetLabel: pod
+

@@ -1,0 +1,94 @@
+# Prometheus Configuration for pgbalancer Monitoring
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'pgbalancer-cluster'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - 'alertmanager:9093'
+
+# Load rules
+rule_files:
+  - 'pgbalancer-alerts.yml'
+
+# Scrape configurations
+scrape_configs:
+  # pgbalancer REST API metrics
+  - job_name: 'pgbalancer-rest-api'
+    static_configs:
+      - targets:
+          - 'pgbalancer-0:8080'
+          - 'pgbalancer-1:8080'
+          - 'pgbalancer-2:8080'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+      - source_labels: [__address__]
+        regex: 'pgbalancer-([0-9]+):.*'
+        target_label: pod_id
+        replacement: '${1}'
+
+  # pgbalancer via bctl exporter (textfile)
+  - job_name: 'pgbalancer-exporter'
+    static_configs:
+      - targets:
+          - 'localhost:9100'
+    file_sd_configs:
+      - files:
+          - '/etc/prometheus/targets/pgbalancer-*.json'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: pgbalancer_host
+
+  # Node exporter with pgbalancer textfile metrics
+  - job_name: 'node-exporter-pgbalancer'
+    static_configs:
+      - targets:
+          - 'pgbalancer-host-1:9100'
+          - 'pgbalancer-host-2:9100'
+          - 'pgbalancer-host-3:9100'
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'pgbalancer_.*'
+        action: keep
+
+  # PostgreSQL backends (for correlation)
+  - job_name: 'postgres-backends'
+    static_configs:
+      - targets:
+          - 'postgres-primary:9187'
+          - 'postgres-replica-1:9187'
+          - 'postgres-replica-2:9187'
+
+# Kubernetes service discovery (for K8s deployments)
+  - job_name: 'pgbalancer-k8s'
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names:
+            - database
+            - production-db
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        action: keep
+        regex: pgbalancer
+      - source_labels: [__meta_kubernetes_pod_container_port_number]
+        action: keep
+        regex: '8080'
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+      - source_labels: [__meta_kubernetes_namespace]
+        target_label: namespace
+      - source_labels: [__meta_kubernetes_pod_node_name]
+        target_label: node
+

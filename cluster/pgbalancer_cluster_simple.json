@@ -1,0 +1,45 @@
+{
+  "cluster_name": "pgbalancer_simple_cluster",
+  "network": {
+    "name": "pgbalancer_simple_net",
+    "subnet": "172.31.0.0/16"
+  },
+  "balancers": [
+    {
+      "name": "lb1",
+      "container_name": "pgbalancer_lb1",
+      "ip_address": "172.31.1.10",
+      "port": 19999,
+      "pcp_port": 19898,
+      "rest_api_port": 18080,
+      "config": {
+        "num_init_children": 16,
+        "max_pool": 2,
+        "load_balance_mode": "on"
+      },
+      "primary": {
+        "host": "primary1",
+        "port": 15432,
+        "container_name": "primary1",
+        "ip_address": "172.31.1.20"
+      },
+      "replicas": [
+        {
+          "node_id": 1,
+          "host": "replica1",
+          "port": 15433,
+          "container_name": "replica1",
+          "ip_address": "172.31.1.21"
+        },
+        {
+          "node_id": 2,
+          "host": "replica2",
+          "port": 15434,
+          "container_name": "replica2",
+          "ip_address": "172.31.1.22"
+        }
+      ]
+    }
+  ]
+}
+

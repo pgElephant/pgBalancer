@@ -1,0 +1,208 @@
+# Prometheus Alerting Rules for pgbalancer
+
+groups:
+  - name: pgbalancer_availability
+    interval: 30s
+    rules:
+      - alert: PgbalancerDown
+        expr: pgbalancer_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: pgbalancer
+        annotations:
+          summary: "pgbalancer instance is down"
+          description: "pgbalancer on {{ $labels.instance }} has been down for more than 1 minute."
+
+      - alert: PgbalancerBackendDown
+        expr: pgbalancer_backend_up == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: backend
+        annotations:
+          summary: "PostgreSQL backend is down"
+          description: "Backend node {{ $labels.node_id }} on {{ $labels.instance }} has been down for more than 2 minutes."
+
+      - alert: PgbalancerPrimaryDown
+        expr: pgbalancer_backend_up{role="primary"} == 0
+        for: 30s
+        labels:
+          severity: critical
+          component: backend
+        annotations:
+          summary: "PostgreSQL primary backend is down"
+          description: "Primary backend on {{ $labels.instance }} is down. Immediate attention required!"
+
+      - alert: PgbalancerAllBackendsDown
+        expr: sum(pgbalancer_backend_up) == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: backend
+        annotations:
+          summary: "All PostgreSQL backends are down"
+          description: "All backend servers are unavailable on {{ $labels.instance }}. Database service is offline!"
+
+  - name: pgbalancer_performance
+    interval: 30s
+    rules:
+      - alert: PgbalancerHighConnectionPoolUtilization
+        expr: (pgbalancer_pool_connections_active / pgbalancer_pool_connections_total) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          component: pool
+        annotations:
+          summary: "Connection pool utilization is high"
+          description: "Pool utilization on {{ $labels.instance }} is above 90% for 5 minutes. Consider increasing pool size."
+
+      - alert: PgbalancerHighProcessCount
+        expr: pgbalancer_process_active > pgbalancer_process_total * 0.95
+        for: 5m
+        labels:
+          severity: warning
+          component: process
+        annotations:
+          summary: "High active process count"
+          description: "Active processes on {{ $labels.instance }} are above 95% of capacity."
+
+      - alert: PgbalancerConnectionPoolExhaustion
+        expr: (pgbalancer_pool_connections_active / pgbalancer_pool_connections_total) >= 1
+        for: 1m
+        labels:
+          severity: critical
+          component: pool
+        annotations:
+          summary: "Connection pool is exhausted"
+          description: "Connection pool on {{ $labels.instance }} is at 100% capacity. New connections will be refused!"
+
+  - name: pgbalancer_load_balancing
+    interval: 30s
+    rules:
+      - alert: PgbalancerUnbalancedLoad
+        expr: |
+          (
+            max(rate(pgbalancer_backend_queries_total[5m])) - 
+            min(rate(pgbalancer_backend_queries_total[5m]))
+          ) / avg(rate(pgbalancer_backend_queries_total[5m])) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          component: load_balancer
+        annotations:
+          summary: "Load distribution is unbalanced"
+          description: "Query distribution across backends on {{ $labels.instance }} is skewed by more than 50%."
+
+      - alert: PgbalancerSingleBackendOverload
+        expr: |
+          rate(pgbalancer_backend_queries_total[5m]) > 
+          avg(rate(pgbalancer_backend_queries_total[5m])) * 2
+        for: 5m
+        labels:
+          severity: warning
+          component: load_balancer
+        annotations:
+          summary: "Single backend is handling too much load"
+          description: "Backend {{ $labels.node_id }} on {{ $labels.instance }} is handling 2x the average load."
+
+  - name: pgbalancer_health
+    interval: 30s
+    rules:
+      - alert: PgbalancerHealthCheckFailures
+        expr: rate(pgbalancer_health_check_failures_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: health_check
+        annotations:
+          summary: "Health check failures detected"
+          description: "Health checks are failing on {{ $labels.instance }} at {{ $value }} failures/sec."
+
+      - alert: PgbalancerHighReplicationLag
+        expr: pgbalancer_backend_replication_lag_seconds > 60
+        for: 5m
+        labels:
+          severity: warning
+          component: replication
+        annotations:
+          summary: "High replication lag detected"
+          description: "Backend {{ $labels.node_id }} on {{ $labels.instance }} has {{ $value }}s replication lag."
+
+      - alert: PgbalancerCriticalReplicationLag
+        expr: pgbalancer_backend_replication_lag_seconds > 300
+        for: 2m
+        labels:
+          severity: critical
+          component: replication
+        annotations:
+          summary: "Critical replication lag detected"
+          description: "Backend {{ $labels.node_id }} has {{ $value }}s replication lag (>5 minutes)!"
+
+  - name: pgbalancer_watchdog
+    interval: 30s
+    rules:
+      - alert: PgbalancerWatchdogQuorumLost
+        expr: pgbalancer_watchdog_quorum == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: watchdog
+        annotations:
+          summary: "Watchdog quorum lost"
+          description: "Watchdog on {{ $labels.instance }} has lost quorum. Split-brain risk!"
+
+      - alert: PgbalancerWatchdogLeaderMissing
+        expr: sum(pgbalancer_watchdog_state == 4) == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: watchdog
+        annotations:
+          summary: "No watchdog leader elected"
+          description: "No pgbalancer instance has watchdog leader role. HA coordination unavailable!"
+
+  - name: pgbalancer_resources
+    interval: 30s
+    rules:
+      - alert: PgbalancerHighMemoryUsage
+        expr: process_resident_memory_bytes{job="pgbalancer-rest-api"} > 2e9
+        for: 10m
+        labels:
+          severity: warning
+          component: resources
+        annotations:
+          summary: "High memory usage"
+          description: "pgbalancer on {{ $labels.instance }} is using {{ $value | humanize }}B of memory."
+
+      - alert: PgbalancerHighCPUUsage
+        expr: rate(process_cpu_seconds_total{job="pgbalancer-rest-api"}[5m]) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          component: resources
+        annotations:
+          summary: "High CPU usage"
+          description: "pgbalancer on {{ $labels.instance }} CPU usage is above 80% for 10 minutes."
+
+  - name: pgbalancer_failover
+    interval: 30s
+    rules:
+      - alert: PgbalancerFailoverEvent
+        expr: increase(pgbalancer_failover_total[5m]) > 0
+        labels:
+          severity: warning
+          component: failover
+        annotations:
+          summary: "Failover event detected"
+          description: "A failover event occurred on {{ $labels.instance }}. Check backend status."
+
+      - alert: PgbalancerFrequentFailovers
+        expr: increase(pgbalancer_failover_total[1h]) > 3
+        labels:
+          severity: critical
+          component: failover
+        annotations:
+          summary: "Frequent failovers detected"
+          description: "More than 3 failovers in the last hour on {{ $labels.instance }}. Investigate backend stability."
+

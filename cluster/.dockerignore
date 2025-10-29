@@ -1,0 +1,57 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docker
+docker-compose.yml
+.dockerignore
+Dockerfile*
+
+# Build artifacts
+*.o
+*.a
+*.so
+*.dylib
+*.log
+build/
+autom4te.cache/
+
+# Documentation
+*.md
+docs/
+doc.ja/
+
+# Test files
+test/
+monitoring/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.old
+*.orig
+
+# Cluster specific
+cluster/
+examples/
+config/
+postgres/
+scripts/
+
+# Environment
+.env
+env.example
+*.env.local
+

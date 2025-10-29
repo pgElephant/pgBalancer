@@ -1,0 +1,16 @@
+In addition to original PostgreSQL's files followings are added:
+
+- exclude_files:	files that should not be touched by pgindent.
+- run_pgindent:	handy script to run pgindent. Should be run at src directory.
+
+The steps to run pgindent are as follows:
+
+1. Add typedes/enums to typedefs.list.
+
+2. Or, if you want to generate typedefs.list from scratch, run find_typedes:
+   cd pgpool2
+   src/tools/find_typedef src > src/tools/pgindent/typedefs.list
+
+3. Run pgindent by using run_pgindent.
+   cd pgpool2/src
+   tools/pgindent/run_pgindent

@@ -1,0 +1,239 @@
+name: Deploy Documentation
+
+on:
+  workflow_dispatch:
+  # Automatic triggers disabled - run manually only
+  # push:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - 'docs/**'
+  #     - 'mkdocs.yml'
+  #     - '.github/workflows/docs.yml'
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-mkdocs
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install MkDocs and dependencies
+        run: |
+          pip install --upgrade pip
+          pip install mkdocs mkdocs-material mkdocs-minify-plugin pymdown-extensions
+
+      - name: Create documentation structure
+        run: |
+          mkdir -p docs
+          
+          # Create mkdocs.yml
+          cat > mkdocs.yml << 'EOFCONFIG'
+          site_name: pgbalancer Documentation
+          site_description: Modern PostgreSQL Connection Pooler with REST API
+          site_author: pgElephant, Inc.
+          repo_url: https://github.com/pgelephant/pgbalancer
+          repo_name: pgelephant/pgbalancer
+          
+          theme:
+            name: material
+            palette:
+              - scheme: default
+                primary: indigo
+                accent: cyan
+                toggle:
+                  icon: material/brightness-7
+                  name: Switch to dark mode
+              - scheme: slate
+                primary: indigo
+                accent: cyan
+                toggle:
+                  icon: material/brightness-4
+                  name: Switch to light mode
+            features:
+              - navigation.instant
+              - navigation.tracking
+              - navigation.tabs
+              - navigation.tabs.sticky
+              - navigation.sections
+              - navigation.expand
+              - navigation.top
+              - search.suggest
+              - search.highlight
+              - content.code.copy
+            icon:
+              repo: fontawesome/brands/github
+          
+          markdown_extensions:
+            - admonition
+            - pymdownx.details
+            - pymdownx.superfences
+            - pymdownx.highlight:
+                anchor_linenums: true
+            - pymdownx.inlinehilite
+            - pymdownx.snippets
+            - pymdownx.tabbed:
+                alternate_style: true
+            - tables
+            - attr_list
+            - md_in_html
+            - def_list
+          
+          nav:
+            - Home: index.md
+            - Getting Started:
+              - Installation: installation.md
+              - Quick Start: quickstart.md
+              - Configuration: configuration.md
+            - Features:
+              - REST API: rest-api.md
+              - CLI Tool (bctl): bctl.md
+              - YAML Config: yaml-config.md
+              - pgraft Integration: pgraft-integration.md
+              - AI Load Balancing: ai-load-balancing.md
+            - Operations:
+              - Connection Pooling: pooling.md
+              - Load Balancing: load-balancing.md
+              - Failover & Recovery: failover.md
+              - Monitoring: monitoring.md
+            - Reference:
+              - Configuration Parameters: parameters.md
+              - REST API Reference: api-reference.md
+              - Comparison: comparison.md
+            - About:
+              - License: license.md
+          
+          plugins:
+            - search
+            - minify:
+                minify_html: true
+          
+          extra:
+            social:
+              - icon: fontawesome/brands/github
+                link: https://github.com/pgelephant/pgbalancer
+          EOFCONFIG
+          
+          # Create index.md
+          cat > docs/index.md << 'EOF'
+          # pgbalancer
+          
+          **Modern PostgreSQL Connection Pooler with REST API**
+          
+          Production-ready connection pooling, load balancing, and high availability for PostgreSQL 13-18.
+          
+          ## Overview
+          
+          pgbalancer is a modern fork of pgpool-II that provides enterprise-grade connection pooling and load balancing with a comprehensive REST API, professional CLI tool, and YAML configuration support.
+          
+          **Key Features:**
+          
+          - **REST API Management** — 17 HTTP/JSON endpoints for complete cluster control
+          - **Unified CLI Tool (bctl)** — Professional command-line interface
+          - **YAML Configuration** — Modern config format with validation
+          - **pgraft Consensus** — Optional Raft-based leader election
+          - **AI Load Balancing** — Smart query distribution algorithms
+          - **JWT Authentication** — Secure API access
+          - **PostgreSQL 13-18** — Full support for latest versions
+          
+          ## Quick Install
+          
+          ```bash
+          # Download from releases
+          # RPM:
+          sudo dnf install pgbalancer_17-1.0.0-1.el9.x86_64.rpm
+          
+          # DEB:
+          sudo apt install ./postgresql-17-pgbalancer_1.0.0-1_amd64.deb
+          
+          # Configure
+          vi /etc/pgbalancer/pgbalancer.yml
+          
+          # Start
+          pgbalancer -f /etc/pgbalancer/pgbalancer.yml
+          
+          # Check status
+          bctl status
+          ```
+          
+          ## Why pgbalancer?
+          
+          - **Modern API** — HTTP/JSON instead of binary PCP protocol
+          - **Unified CLI** — Single bctl tool instead of 10+ pcp_* commands
+          - **YAML Config** — Human-readable configuration
+          - **Consensus Integration** — pgraft for split-brain prevention
+          - **Better Monitoring** — Prometheus metrics, Grafana dashboards
+          - **Production Ready** — Based on battle-tested pgpool-II
+          
+          ## Documentation
+          
+          - [Installation Guide](installation.md) - Complete setup instructions
+          - [Quick Start](quickstart.md) - Get running in 5 minutes
+          - [REST API](rest-api.md) - HTTP API documentation
+          - [CLI Tool](bctl.md) - bctl command reference
+          - [Configuration](configuration.md) - All parameters explained
+          - [pgraft Integration](pgraft-integration.md) - Consensus-based leader election
+          - [Monitoring](monitoring.md) - Prometheus & Grafana setup
+          
+          ## License
+          
+          PostgreSQL License (similar to MIT/BSD)
+          
+          See [License](license.md) for details.
+          EOF
+          
+          # Create minimal placeholder docs (will be expanded later)
+          for page in installation quickstart configuration rest-api bctl yaml-config \
+                      pgraft-integration ai-load-balancing pooling load-balancing \
+                      failover monitoring parameters api-reference comparison license; do
+            cat > docs/${page}.md << EOFPAGE
+          # ${page^}
+          
+          Documentation coming soon.
+          
+          For now, see the [README.md](https://github.com/pgelephant/pgbalancer/blob/main/README.md) and [SGML documentation](https://github.com/pgelephant/pgbalancer/tree/main/doc).
+          EOFPAGE
+          done
+
+      - name: Build documentation
+        run: mkdocs build --strict --site-dir site
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'site'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

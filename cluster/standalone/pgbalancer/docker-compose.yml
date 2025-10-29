@@ -1,0 +1,85 @@
+version: '3.8'
+
+# Standalone pgBalancer
+# Use this to run pgBalancer connecting to external PostgreSQL instances
+
+services:
+  pgbalancer:
+    build:
+      context: ../../..
+      dockerfile: cluster/standalone/pgbalancer/Dockerfile
+      args:
+        PG_MAJOR: 17
+    image: pgbalancer:standalone
+    container_name: pgbalancer_standalone
+    hostname: pgbalancer
+    environment:
+      # Backend nodes (configure these to point to your PostgreSQL servers)
+      BACKEND0_HOST: ${BACKEND0_HOST:-postgres-primary}
+      BACKEND0_PORT: ${BACKEND0_PORT:-5432}
+      BACKEND0_WEIGHT: ${BACKEND0_WEIGHT:-1}
+      BACKEND0_DATA_DIRECTORY: ${BACKEND0_DATA_DIRECTORY:-/var/lib/postgresql/data}
+      
+      BACKEND1_HOST: ${BACKEND1_HOST:-postgres-standby1}
+      BACKEND1_PORT: ${BACKEND1_PORT:-5432}
+      BACKEND1_WEIGHT: ${BACKEND1_WEIGHT:-1}
+      BACKEND1_DATA_DIRECTORY: ${BACKEND1_DATA_DIRECTORY:-/var/lib/postgresql/data}
+      
+      BACKEND2_HOST: ${BACKEND2_HOST:-postgres-standby2}
+      BACKEND2_PORT: ${BACKEND2_PORT:-5432}
+      BACKEND2_WEIGHT: ${BACKEND2_WEIGHT:-1}
+      BACKEND2_DATA_DIRECTORY: ${BACKEND2_DATA_DIRECTORY:-/var/lib/postgresql/data}
+      
+      # Connection pool
+      NUM_INIT_CHILDREN: ${NUM_INIT_CHILDREN:-32}
+      MAX_POOL: ${MAX_POOL:-4}
+      
+      # Features
+      LOAD_BALANCE_MODE: ${LOAD_BALANCE_MODE:-on}
+      ENABLE_REST_API: ${ENABLE_REST_API:-on}
+      REST_API_PORT: ${REST_API_PORT:-8080}
+      USE_WATCHDOG: ${USE_WATCHDOG:-off}
+      
+      # Health check
+      HEALTH_CHECK_PERIOD: ${HEALTH_CHECK_PERIOD:-10}
+      HEALTH_CHECK_USER: ${HEALTH_CHECK_USER:-postgres}
+      HEALTH_CHECK_PASSWORD: ${HEALTH_CHECK_PASSWORD:-postgres}
+      
+      # Streaming replication check
+      SR_CHECK_USER: ${SR_CHECK_USER:-postgres}
+      SR_CHECK_PASSWORD: ${SR_CHECK_PASSWORD:-postgres}
+      
+      # Authentication
+      ENABLE_POOL_HBA: ${ENABLE_POOL_HBA:-off}
+      ALLOW_CLEAR_TEXT_FRONTEND_AUTH: ${ALLOW_CLEAR_TEXT_FRONTEND_AUTH:-on}
+      
+      # Wait for backends
+      WAIT_FOR_BACKENDS: ${WAIT_FOR_BACKENDS:-yes}
+    volumes:
+      - pgbalancer-config:/etc/pgbalancer
+      - pgbalancer-logs:/var/log/pgbalancer
+      - pgbalancer-data:/var/lib/pgbalancer
+    ports:
+      - "${PGBALANCER_PORT:-9999}:9999"
+      - "${PCP_PORT:-9898}:9898"
+      - "${REST_API_PORT:-8080}:8080"
+    networks:
+      - pgbalancer-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "bctl", "--host", "localhost", "--port", "8080", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+networks:
+  pgbalancer-network:
+    driver: bridge
+    name: pgbalancer-net
+
+volumes:
+  pgbalancer-config:
+  pgbalancer-logs:
+  pgbalancer-data:
+

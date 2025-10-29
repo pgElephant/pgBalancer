@@ -1,0 +1,6 @@
+CREATE EXTENSION
+ database |     status      |   case    |     statement      
+----------+-----------------+-----------+--------------------
+ test     | Execute command | localhost | SELECT pg_sleep(1)
+(1 row)
+

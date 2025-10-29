@@ -1,0 +1,16 @@
+pgbalancer-postgresql-@PG_VERSION@ (1.0.0-1) unstable; urgency=low
+
+  * Initial Debian release
+  * PostgreSQL 13, 14, 15, 16, 17, 18 support
+  * Modern REST API with 17 endpoints
+  * Unified bctl CLI tool
+  * YAML configuration support
+  * pgraft consensus integration
+  * AI-based load balancing
+  * JWT authentication
+  * Enhanced monitoring and observability
+  * Connection pooling and load balancing
+  * Automatic failover and recovery
+
+ -- pgElephant Team <team@pgelephant.org>  Sun, 27 Oct 2024 12:00:00 +0000
+

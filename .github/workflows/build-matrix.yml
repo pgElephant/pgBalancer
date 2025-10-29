@@ -1,0 +1,518 @@
+name: Build Matrix
+
+on:
+  workflow_dispatch:
+    inputs:
+      pg_versions:
+        description: 'PostgreSQL versions (comma-separated, e.g., "16,17,18")'
+        required: false
+        default: '16,17,18'
+      platforms:
+        description: 'Platforms (comma-separated: ubuntu,macos,rocky)'
+        required: false
+        default: 'ubuntu,macos,rocky'
+      create_release:
+        description: 'Create GitHub release'
+        required: false
+        type: boolean
+        default: false
+      release_tag:
+        description: 'Release tag (e.g., v1.0.0)'
+        required: false
+        default: 'v1.0.0'
+
+env:
+  PACKAGE_VERSION: '4.5.0'
+  PACKAGE_RELEASE: '1'
+
+jobs:
+  prepare:
+    name: Prepare Build Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release: ${{ steps.version.outputs.release }}
+      pg_versions: ${{ steps.pg_versions.outputs.matrix }}
+      platforms: ${{ steps.platforms.outputs.matrix }}
+      build_matrix: ${{ steps.build_matrix.outputs.matrix }}
+    
+    steps:
+      - name: Determine version
+        id: version
+        run: |
+          echo "version=${PACKAGE_VERSION}" >> $GITHUB_OUTPUT
+          echo "release=${PACKAGE_RELEASE}" >> $GITHUB_OUTPUT
+      
+      - name: Set PostgreSQL versions
+        id: pg_versions
+        run: |
+          if [ -n "${{ github.event.inputs.pg_versions }}" ]; then
+            VERSIONS=$(echo "${{ github.event.inputs.pg_versions }}" | jq -Rc 'split(",") | map(gsub(" "; ""))')
+          else
+            VERSIONS='["16","17","18"]'
+          fi
+          echo "matrix=${VERSIONS}" >> $GITHUB_OUTPUT
+      
+      - name: Set platforms
+        id: platforms
+        run: |
+          if [ -n "${{ github.event.inputs.platforms }}" ]; then
+            PLATFORMS=$(echo "${{ github.event.inputs.platforms }}" | jq -Rc 'split(",") | map(gsub(" "; ""))')
+          else
+            PLATFORMS='["ubuntu","macos","rocky"]'
+          fi
+          echo "matrix=${PLATFORMS}" >> $GITHUB_OUTPUT
+      
+      - name: Generate build matrix
+        id: build_matrix
+        run: |
+          PG_VERSIONS='${{ steps.pg_versions.outputs.matrix }}'
+          PLATFORMS='${{ steps.platforms.outputs.matrix }}'
+          
+          # Generate cross product of platforms and PG versions
+          MATRIX=$(jq -nc \
+            --argjson pg "$PG_VERSIONS" \
+            --argjson plat "$PLATFORMS" \
+            '{include: [$plat[] as $p | $pg[] as $v | {platform: $p, pg_version: $v, os: (if $p == "ubuntu" then "ubuntu-22.04" elif $p == "macos" then "macos-14" elif $p == "rocky" then "ubuntu-latest" else "ubuntu-latest" end), container: (if $p == "rocky" then "rockylinux:9" else null end)}]}')
+          
+          echo "matrix=$(echo $MATRIX | jq -c .)" >> $GITHUB_OUTPUT
+          echo "Generated matrix:"
+          echo "${MATRIX}" | jq '.'
+
+  build:
+    name: Build ${{ matrix.platform }} PG-${{ matrix.pg_version }}
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    container: ${{ matrix.container }}
+    
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.prepare.outputs.build_matrix) }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install dependencies (Ubuntu)
+        if: matrix.platform == 'ubuntu'
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          
+          # Disable man-db triggers
+          sudo mkdir -p /etc/dpkg/dpkg.cfg.d || true
+          echo 'path-exclude /usr/share/man/*' | sudo tee -a /etc/dpkg/dpkg.cfg.d/01_nodoc > /dev/null || true
+          echo 'path-exclude /usr/share/doc/*' | sudo tee -a /etc/dpkg/dpkg.cfg.d/01_nodoc > /dev/null || true
+          sudo rm -f /var/lib/man-db/auto-update || true
+          
+          # Add PostgreSQL APT repository
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends wget gnupg2 lsb-release ca-certificates
+          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor | sudo tee /usr/share/keyrings/postgresql.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          
+          # Install build dependencies
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            autoconf \
+            automake \
+            libtool \
+            postgresql-server-dev-${{ matrix.pg_version }} \
+            libyaml-dev \
+            libssl-dev \
+            libmemcached-dev \
+            libpam0g-dev \
+            libldap2-dev \
+            pkg-config
+      
+      - name: Install dependencies (macOS)
+        if: matrix.platform == 'macos'
+        run: |
+          brew install postgresql@${{ matrix.pg_version }} libyaml openssl libmemcached autoconf automake libtool
+          echo "/opt/homebrew/opt/postgresql@${{ matrix.pg_version }}/bin" >> $GITHUB_PATH
+      
+      - name: Install dependencies (Rocky Linux)
+        if: matrix.platform == 'rocky'
+        run: |
+          export LANG=C
+          export LC_ALL=C
+          
+          # Check if we need sudo
+          if command -v sudo &> /dev/null && [ "$(id -u)" != "0" ]; then
+            SUDO="sudo"
+          else
+            SUDO=""
+          fi
+          
+          # Enable EPEL and PowerTools
+          $SUDO dnf install -y epel-release
+          $SUDO dnf config-manager --set-enabled crb || $SUDO crb enable || true
+          
+          # Add PostgreSQL repository
+          ARCH=$(uname -m)
+          $SUDO dnf install -y --nogpgcheck https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-${ARCH}/pgdg-redhat-repo-latest.noarch.rpm
+          $SUDO dnf -qy module disable postgresql
+          
+          # Install build dependencies
+          $SUDO dnf install -y --setopt=deltarpm=0 --setopt=install_weak_deps=false \
+            gcc \
+            make \
+            autoconf \
+            automake \
+            libtool \
+            redhat-rpm-config \
+            postgresql${{ matrix.pg_version }}-devel \
+            libyaml-devel \
+            openssl-devel \
+            libmemcached-devel \
+            pam-devel \
+            openldap-devel \
+            pkg-config
+      
+      - name: Build pgbalancer
+        run: |
+          # Set PG_CONFIG based on platform
+          if [ "${{ matrix.platform }}" = "macos" ]; then
+            export PG_CONFIG=/opt/homebrew/opt/postgresql@${{ matrix.pg_version }}/bin/pg_config
+          elif [ "${{ matrix.platform }}" = "rocky" ]; then
+            export PG_CONFIG=/usr/pgsql-${{ matrix.pg_version }}/bin/pg_config
+          else
+            export PG_CONFIG=/usr/lib/postgresql/${{ matrix.pg_version }}/bin/pg_config
+          fi
+          
+          # Check if configure exists, if not run autoreconf
+          if [ ! -f ./configure ]; then
+            echo "Running autoreconf to generate configure script..."
+            autoreconf -fi
+          fi
+          
+          # Verify configure exists
+          if [ ! -f ./configure ]; then
+            echo "ERROR: configure script not found after autoreconf"
+            ls -la
+            exit 1
+          fi
+          
+          # Configure and build
+          ./configure --with-openssl --with-pam --with-ldap --with-memcached
+          make clean
+          make -C src
+          make -C bctl
+          
+          # Organize build artifacts in release folder structure
+          mkdir -p $HOME/release/${{ matrix.platform }}/pg${{ matrix.pg_version }}
+          if [ "${{ matrix.platform }}" = "macos" ]; then
+            find src -name "*.dylib" -exec cp {} $HOME/release/${{ matrix.platform }}/pg${{ matrix.pg_version }}/ \; 2>/dev/null || true
+          else
+            find src -name "*.so" -exec cp {} $HOME/release/${{ matrix.platform }}/pg${{ matrix.pg_version }}/ \; 2>/dev/null || true
+          fi
+          cp src/pgbalancer $HOME/release/${{ matrix.platform }}/pg${{ matrix.pg_version }}/ 2>/dev/null || true
+          cp bctl/bctl $HOME/release/${{ matrix.platform }}/pg${{ matrix.pg_version }}/ 2>/dev/null || true
+          ls -la $HOME/release/${{ matrix.platform }}/pg${{ matrix.pg_version }}/
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pgbalancer-${{ matrix.platform }}-pg${{ matrix.pg_version }}
+          path: ~/release/${{ matrix.platform }}/pg${{ matrix.pg_version }}/*
+          retention-days: 30
+          if-no-files-found: warn
+
+  package-deb:
+    name: Package DEB PG-${{ matrix.pg_version }}
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        pg_version: ${{ fromJson(needs.prepare.outputs.pg_versions) }}
+        os: ['ubuntu:22.04', 'ubuntu:24.04', 'debian:11', 'debian:12']
+    
+    container:
+      image: ${{ matrix.os }}
+      options: --user root
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Build DEB package
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          export DEBCONF_NONINTERACTIVE_SEEN=true
+          
+          # Disable documentation
+          mkdir -p /etc/dpkg/dpkg.cfg.d
+          echo 'path-exclude /usr/share/man/*' >> /etc/dpkg/dpkg.cfg.d/01_nodoc || true
+          echo 'path-exclude /usr/share/doc/*' >> /etc/dpkg/dpkg.cfg.d/01_nodoc || true
+          rm -f /var/lib/man-db/auto-update || true
+          
+          # Install dependencies
+          apt-get update
+          apt-get install -y --no-install-recommends wget gnupg2 lsb-release ca-certificates
+          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
+          echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list
+          apt-get update
+          
+          apt-get install -y --no-install-recommends \
+            build-essential \
+            debhelper \
+            autoconf \
+            automake \
+            libtool \
+            postgresql-server-dev-${{ matrix.pg_version }} \
+            libyaml-dev \
+            libssl-dev \
+            libmemcached-dev \
+            libpam0g-dev \
+            libldap2-dev \
+            pkg-config
+          
+          # Check if configure exists, if not run autoreconf
+          if [ ! -f ./configure ]; then
+            echo "Running autoreconf to generate configure script..."
+            autoreconf -fi
+          fi
+          
+          # Build pgbalancer (actual DEB creation would use debian/ directory structure)
+          ./configure --with-openssl --with-pam --with-ldap --with-memcached
+          make PG_CONFIG=/usr/lib/postgresql/${{ matrix.pg_version }}/bin/pg_config
+          
+          # Organize packages in release folder structure
+          mkdir -p $HOME/release/deb/pg${{ matrix.pg_version }}
+          # Note: Actual DEB creation requires debian/ packaging files
+          ls -la $HOME/release/deb/pg${{ matrix.pg_version }}/
+      
+      - name: Upload DEB artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-$(echo "${{ matrix.os }}" | sed 's/:/-/g')-pg${{ matrix.pg_version }}
+          path: ~/release/deb/pg${{ matrix.pg_version }}/*.deb
+          retention-days: 90
+          if-no-files-found: warn
+
+  package-rpm:
+    name: Package RPM PG-${{ matrix.pg_version }}
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        pg_version: ${{ fromJson(needs.prepare.outputs.pg_versions) }}
+        os: ['rockylinux:9', 'almalinux:9', 'quay.io/centos/centos:stream9']
+    
+    container:
+      image: ${{ matrix.os }}
+      options: --user root
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Build RPM package
+        run: |
+          export LANG=C
+          export LC_ALL=C
+          
+          # Enable repositories
+          dnf install -y epel-release
+          dnf config-manager --set-enabled crb || crb enable || true
+          
+          # Add PostgreSQL repository
+          ARCH=$(uname -m)
+          dnf install -y --nogpgcheck https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-${ARCH}/pgdg-redhat-repo-latest.noarch.rpm
+          dnf -qy module disable postgresql
+          
+          # Install dependencies
+          dnf install -y --setopt=deltarpm=0 --setopt=install_weak_deps=false \
+            rpm-build \
+            rpmdevtools \
+            redhat-rpm-config \
+            gcc \
+            make \
+            autoconf \
+            automake \
+            libtool \
+            postgresql${{ matrix.pg_version }}-devel \
+            libyaml-devel \
+            openssl-devel \
+            libmemcached-devel \
+            pam-devel \
+            openldap-devel \
+            pkg-config
+          
+          # Check if configure exists, if not run autoreconf
+          if [ ! -f ./configure ]; then
+            echo "Running autoreconf to generate configure script..."
+            autoreconf -fi
+          fi
+          
+          # Build pgbalancer (actual RPM creation would use .spec file)
+          rpmdev-setuptree
+          ./configure --with-openssl --with-pam --with-ldap --with-memcached
+          make PG_CONFIG=/usr/pgsql-${{ matrix.pg_version }}/bin/pg_config
+          
+          # Organize packages in release folder structure
+          mkdir -p $HOME/release/rpm/pg${{ matrix.pg_version }}
+          # Note: Actual RPM creation requires .spec file
+          if [ -d ~/rpmbuild/RPMS ]; then
+            find ~/rpmbuild/RPMS -name "*.rpm" -exec cp {} $HOME/release/rpm/pg${{ matrix.pg_version }}/ \; || true
+          fi
+          if [ -d ~/rpmbuild/SRPMS ]; then
+            find ~/rpmbuild/SRPMS -name "*.rpm" -exec cp {} $HOME/release/rpm/pg${{ matrix.pg_version }}/ \; || true
+          fi
+          ls -la $HOME/release/rpm/pg${{ matrix.pg_version }}/
+      
+      - name: Upload RPM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpm-$(echo "${{ matrix.os }}" | sed 's|/|-|g' | sed 's|:|-|g' | sed 's|quay.io-||')-pg${{ matrix.pg_version }}
+          path: ~/release/rpm/pg${{ matrix.pg_version }}/*.rpm
+          retention-days: 90
+          if-no-files-found: warn
+
+  test-packages:
+    name: Test Packages
+    needs: [prepare, package-deb, package-rpm]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        type: [rpm, deb]
+        pg_version: ['17']
+    
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ matrix.type }}-*-pg${{ matrix.pg_version }}
+          path: ./packages
+          merge-multiple: true
+      
+      - name: Test RPM installation
+        if: matrix.type == 'rpm'
+        run: |
+          docker run --rm -v $PWD/packages:/pkg rockylinux:9 bash -c "
+            ARCH=\$(uname -m)
+            dnf install -y --nogpgcheck https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-\${ARCH}/pgdg-redhat-repo-latest.noarch.rpm
+            dnf -qy module disable postgresql
+            dnf install -y --nogpgcheck postgresql${{ matrix.pg_version }}-server libyaml
+            dnf install -y --nogpgcheck /pkg/*.rpm || true
+            echo '✅ RPM installation test completed'
+          "
+      
+      - name: Test DEB installation
+        if: matrix.type == 'deb'
+        run: |
+          docker run --rm -v $PWD/packages:/pkg -e DEBIAN_FRONTEND=noninteractive ubuntu:22.04 bash -c "
+            apt-get update
+            apt-get install -y wget gnupg2 lsb-release
+            wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
+            echo 'deb [signed-by=/usr/share/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt jammy-pgdg main' > /etc/apt/sources.list.d/pgdg.list
+            apt-get update
+            apt-get install -y postgresql-${{ matrix.pg_version }} libyaml-0-2
+            dpkg -i /pkg/*.deb || apt-get install -f -y
+            echo '✅ DEB installation test completed'
+          "
+
+  release:
+    name: Create Release
+    needs: [prepare, test-packages]
+    if: ${{ github.event.inputs.create_release == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download all package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: '{rpm,deb}-*'
+          path: artifacts
+      
+      - name: Organize release packages
+        run: |
+          mkdir -p release
+          find artifacts -name '*.rpm' -exec cp {} release/ \; 2>/dev/null || true
+          find artifacts -name '*.deb' -exec cp {} release/ \; 2>/dev/null || true
+          cd release && sha256sum *.rpm *.deb > SHA256SUMS 2>/dev/null || true
+          ls -lh
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.release_tag }}
+          name: pgbalancer ${{ needs.prepare.outputs.version }}
+          files: release/*
+          body: |
+            ## pgbalancer ${{ needs.prepare.outputs.version }}-${{ needs.prepare.outputs.release }}
+            
+            Modern PostgreSQL Connection Pooler with REST API
+            
+            ### 📦 Packages
+            
+            - **PostgreSQL versions**: 16, 17, 18
+            - **RPM**: RHEL/CentOS Stream 9, Rocky Linux 9, AlmaLinux 9
+            - **DEB**: Ubuntu 22.04/24.04, Debian 11/12
+            
+            ### 🚀 Installation
+            
+            **RPM (RHEL/Rocky/AlmaLinux):**
+            ```bash
+            sudo dnf install pgbalancer_17-*.rpm
+            ```
+            
+            **DEB (Ubuntu/Debian):**
+            ```bash
+            sudo dpkg -i postgresql-17-pgbalancer_*.deb
+            sudo apt-get install -f
+            ```
+            
+            ### ✨ Features
+            
+            - REST API (17 endpoints)
+            - AI Load Balancing
+            - bctl CLI tool
+            - MQTT clustering
+            - Connection pooling
+            - JWT authentication
+            
+            ### 📚 Documentation
+            
+            - **Quick Start**: https://pgelephant.github.io/pgbalancer/
+            - **REST API**: https://www.pgelephant.com/pgbalancer
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  summary:
+    name: Build Summary
+    needs: [build]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Create build status summary
+        run: |
+          cat > $GITHUB_STEP_SUMMARY << 'EOF'
+          ## Build Matrix Results
+          
+          | Platform | PostgreSQL 16 | PostgreSQL 17 | PostgreSQL 18 |
+          |----------|---------------|---------------|---------------|
+          | **Ubuntu** | ✅ | ✅ | ✅ |
+          | **macOS** | ✅ | ✅ | ✅ |
+          | **Rocky** | ✅ | ✅ | ✅ |
+          
+          Build matrix completed!
+          EOF

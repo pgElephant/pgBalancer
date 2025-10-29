@@ -1,0 +1,259 @@
+version: '3.8'
+
+# pgBalancer Cluster - Complete Production-Ready Setup
+# Features: 3-node PostgreSQL cluster + pgBalancer + bctl management
+
+services:
+  # Primary PostgreSQL node
+  postgres-primary:
+    image: postgres:17
+    container_name: pgbalancer_primary
+    hostname: postgres-primary
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: testdb
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-primary-data:/var/lib/postgresql/data
+      - ./postgres/primary/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./postgres/primary/postgresql.conf:/docker-entrypoint-initdb.d/02-postgresql.conf
+    ports:
+      - "15432:5432"
+    networks:
+      pgbalancer-network:
+        ipv4_address: 172.25.0.10
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # Standby PostgreSQL node 1
+  postgres-standby1:
+    image: postgres:17
+    container_name: pgbalancer_standby1
+    hostname: postgres-standby1
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: testdb
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-standby1-data:/var/lib/postgresql/data
+      - ./postgres/standby1/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+    ports:
+      - "15433:5432"
+    networks:
+      pgbalancer-network:
+        ipv4_address: 172.25.0.11
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Standby PostgreSQL node 2
+  postgres-standby2:
+    image: postgres:17
+    container_name: pgbalancer_standby2
+    hostname: postgres-standby2
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: testdb
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-standby2-data:/var/lib/postgresql/data
+      - ./postgres/standby2/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+    ports:
+      - "5434:5432"
+    networks:
+      pgbalancer-network:
+        ipv4_address: 172.25.0.12
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # pgBalancer
+  pgbalancer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PG_MAJOR: 17
+    image: pgbalancer:latest
+    container_name: pgbalancer
+    hostname: pgbalancer
+    environment:
+      # Backend configuration
+      BACKEND0_HOST: postgres-primary
+      BACKEND0_PORT: 5432
+      BACKEND0_WEIGHT: 1
+      BACKEND0_DATA_DIRECTORY: /var/lib/postgresql/data/pgdata
+      
+      BACKEND1_HOST: postgres-standby1
+      BACKEND1_PORT: 5432
+      BACKEND1_WEIGHT: 1
+      BACKEND1_DATA_DIRECTORY: /var/lib/postgresql/data/pgdata
+      
+      BACKEND2_HOST: postgres-standby2
+      BACKEND2_PORT: 5432
+      BACKEND2_WEIGHT: 1
+      BACKEND2_DATA_DIRECTORY: /var/lib/postgresql/data/pgdata
+      
+      # Connection pool settings
+      NUM_INIT_CHILDREN: 32
+      MAX_POOL: 4
+      
+      # Load balancing
+      LOAD_BALANCE_MODE: "on"
+      
+      # Logging
+      LOG_DESTINATION: stderr
+      LOG_LINE_PREFIX: "%t: pid %p: "
+      LOG_CONNECTIONS: "on"
+      LOG_HOSTNAME: "off"
+      LOG_STATEMENT: "off"
+      LOG_PER_NODE_STATEMENT: "off"
+      
+      # Watchdog (disabled for basic setup)
+      USE_WATCHDOG: "off"
+      
+      # Health check
+      HEALTH_CHECK_PERIOD: 10
+      HEALTH_CHECK_TIMEOUT: 20
+      HEALTH_CHECK_USER: postgres
+      HEALTH_CHECK_PASSWORD: postgres
+      HEALTH_CHECK_MAX_RETRIES: 3
+      
+      # Streaming replication check
+      SR_CHECK_USER: postgres
+      SR_CHECK_PASSWORD: postgres
+      
+      # REST API
+      ENABLE_REST_API: "on"
+      REST_API_PORT: 8080
+      REST_API_LISTEN_ADDRESSES: "*"
+      REST_API_AUTH_USER: ""
+      REST_API_AUTH_PASSWORD: ""
+      
+      # Authentication
+      ENABLE_POOL_HBA: "off"
+      ALLOW_CLEAR_TEXT_FRONTEND_AUTH: "on"
+      
+      # PCP
+      PCP_PASSWORD: pgbalancer
+      
+      # Initialization
+      WAIT_FOR_BACKENDS: "yes"
+      PGBALANCER_NODE_ID: 0
+    volumes:
+      - pgbalancer-config:/etc/pgbalancer
+      - pgbalancer-logs:/var/log/pgbalancer
+      - pgbalancer-data:/var/lib/pgbalancer
+      - ./config:/etc/pgbalancer/custom:ro
+    ports:
+      - "9999:9999"   # pgbalancer main port
+      - "9898:9898"   # PCP port
+      - "8080:8080"   # REST API port
+      - "9000:9000"   # Watchdog port
+      - "9694:9694"   # Watchdog heartbeat port
+    networks:
+      pgbalancer-network:
+        ipv4_address: 172.25.0.20
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+      postgres-standby1:
+        condition: service_healthy
+      postgres-standby2:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  # bctl management container
+  bctl:
+    image: pgbalancer:latest
+    container_name: pgbalancer_bctl
+    hostname: bctl
+    entrypoint: ["/usr/local/bin/bctl-wrapper.sh"]
+    stdin_open: true
+    tty: true
+    networks:
+      pgbalancer-network:
+        ipv4_address: 172.25.0.30
+    depends_on:
+      - pgbalancer
+    environment:
+      PGBALANCER_HOST: pgbalancer
+      PGBALANCER_PORT: 8080
+      PGBALANCER_REST_API: "http://pgbalancer:8080"
+    volumes:
+      - ./examples:/examples:ro
+    profiles:
+      - tools
+    restart: "no"
+
+  # Monitoring (optional - Prometheus exporter)
+  pgbalancer-exporter:
+    image: pgbalancer:latest
+    container_name: pgbalancer_exporter
+    hostname: pgbalancer-exporter
+    entrypoint: ["/bin/bash", "-c"]
+    command: 
+      - |
+        while true; do
+          bctl --host pgbalancer --port 8080 status > /tmp/status.json 2>&1 || true
+          sleep 30
+        done
+    networks:
+      - pgbalancer-network
+    depends_on:
+      - pgbalancer
+    profiles:
+      - monitoring
+    restart: unless-stopped
+
+networks:
+  pgbalancer-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.25.0.0/16
+          gateway: 172.25.0.1
+
+volumes:
+  postgres-primary-data:
+    driver: local
+  postgres-standby1-data:
+    driver: local
+  postgres-standby2-data:
+    driver: local
+  pgbalancer-config:
+    driver: local
+  pgbalancer-logs:
+    driver: local
+  pgbalancer-data:
+    driver: local

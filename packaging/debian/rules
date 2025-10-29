@@ -1,0 +1,28 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE=1
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	./configure \
+		--prefix=/usr \
+		--sysconfdir=/etc/pgbalancer \
+		--with-openssl \
+		--with-pam \
+		--enable-rest-api
+
+override_dh_auto_build:
+	$(MAKE)
+
+override_dh_auto_install:
+	$(MAKE) install DESTDIR=$(CURDIR)/debian/tmp
+	# Create directories
+	mkdir -p $(CURDIR)/debian/tmp/etc/pgbalancer
+	mkdir -p $(CURDIR)/debian/tmp/var/log/pgbalancer
+	mkdir -p $(CURDIR)/debian/tmp/var/run/pgbalancer
+
+override_dh_auto_test:
+	@echo "Skipping tests"
+

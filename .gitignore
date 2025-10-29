@@ -1,55 +1,90 @@
-# Prerequisites
-*.d
-
-# Object files
+# emacs autosave files. You need to change to "#:#" if you are using git
+# 1.6.1 or before.
+\#*#
+*~
 *.o
-*.ko
-*.obj
-*.elf
-
-# Linker output
-*.ilk
-*.map
-*.exp
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Libraries
-*.lib
 *.a
-*.la
-*.lo
-
-# Shared objects (inc. Windows DLLs)
-*.dll
 *.so
-*.so.*
-*.dylib
+*.lo
+*.la
+*.orig
+*.patch
+.deps/
+.libs/
+Makefile
+TAGS
+tags
+autom4te.cache/
+config.h
+config.log
+config.status
+libtool
+pcp/pcp_attach_node
+pcp/pcp_detach_node
+pcp/pcp_node_count
+pcp/pcp_node_info
+pcp/pcp_pool_status
+pcp/pcp_proc_count
+pcp/pcp_proc_info
+pcp/pcp_promote_node
+pcp/pcp_recovery_node
+pcp/pcp_stop_pgpool
+pcp/pcp_systemdb_info
+pg_md5
+pgpool
+pgpool.8
+sql/pgpool-recovery/pgpool-recovery.sql
+sql/pgpool-regclass/pgpool-regclass.sql
+stamp-h1
+Makefile.in
+src/include/config.h.in
 
-# Executables
-*.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
+# Local excludes in root directory
+/aclocal.m4
+/compile
+/configure
+/config.guess
+/config.sub
+/depcomp
+/install-sh
+/ltmain.sh
+/missing
+/mkinstalldirs
+/ylwrap
+/m4/libtool.m4
+/m4/ltoptions.m4
+/m4/ltsugar.m4
+/m4/ltversion.m4
+/m4/lt~obsolete.m4
+/build/
 
-# Debug files
-*.dSYM/
-*.su
-*.idb
-*.pdb
+# Build and configure logs
+build.log
+configure.log
 
-# Kernel Module Compile Results
-*.mod*
-*.cmd
-.tmp_versions/
-modules.order
-Module.symvers
-Mkfile.old
-dkms.conf
+# Generated binaries
+src/pgbalancer
+src/test/pgbalancer_setup
+src/tools/pgbalancer_setup
 
-# debug information files
-*.dwo
+# Generated headers (created during build)
+src/include/pgpool_logger.h
+src/include/pool_internal_comms.h
+src/include/pool_pg_utils.h
+src/include/pool_process_query.h
+src/include/statistics.h
+bctl/bctl
+
+# Build logs
+build_macos.log
+build_macos_final.log
+build.log
+
+# Generated tool files (symlinks/copies of pool_config_yaml.c)
+src/tools/pgenc/pool_config_yaml.c
+src/tools/pgmd5/pool_config_yaml.c
+src/tools/watchdog/pool_config_yaml.c
+
+# Built binaries
+src/tools/pgbalancer_config/pgbalancer_config
+
