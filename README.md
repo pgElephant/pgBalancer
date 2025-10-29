@@ -2,7 +2,7 @@
 
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-13+-blue.svg)](https://postgresql.org/)
 [![License](https://img.shields.io/badge/License-PostgreSQL-yellow.svg)](COPYING)
-[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://pgelephant.github.io/pgbalancer/)
+[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://pgelephant.github.io/pgBalancer/)
 
 ## Build Status
 
@@ -19,10 +19,12 @@
 
 ## Quick Links
 
-- **[Documentation](https://pgelephant.github.io/pgbalancer/)** - Complete documentation site
-- **[Quick Start Guide](https://pgelephant.github.io/pgbalancer/getting-started/quick-start/)** - Get running in minutes
-- **[REST API Reference](https://pgelephant.github.io/pgbalancer/api/rest/)** - Complete API documentation
-- **[CLI Reference](https://pgelephant.github.io/pgbalancer/user-guide/cli/)** - bctl command reference
+- **[Documentation](https://pgelephant.github.io/pgBalancer/)** - Complete documentation site
+- **[Installation Guide](https://pgelephant.github.io/pgBalancer/installation/)** - Installation instructions
+- **[Quick Start Guide](https://pgelephant.github.io/pgBalancer/quickstart/)** - Get running in minutes
+- **[REST API Reference](https://pgelephant.github.io/pgBalancer/rest-api/)** - Complete API documentation
+- **[CLI Reference (bctl)](https://pgelephant.github.io/pgBalancer/bctl/)** - bctl command reference
+- **[Configuration Guide](https://pgelephant.github.io/pgBalancer/configuration/)** - Configuration parameters
 - **[Contributing](CONTRIBUTING.md)** - How to contribute
 
 ## Key Features
@@ -117,7 +119,7 @@ make
 sudo make install
 ```
 
-**For detailed installation instructions, see the [Installation Guide](https://pgelephant.github.io/pgbalancer/getting-started/installation/).**
+**For detailed installation instructions, see the [Installation Guide](https://pgelephant.github.io/pgBalancer/installation/).**
 
 ## Configuration
 
@@ -205,7 +207,7 @@ mqtt_client_id = 'pgbalancer'
 mqtt_topic_prefix = 'pgbalancer'
 ```
 
-**For complete configuration reference, see the [Configuration Guide](https://pgelephant.github.io/pgbalancer/user-guide/configuration/).**
+**For complete configuration reference, see the [Configuration Guide](https://pgelephant.github.io/pgBalancer/configuration/).**
 
 ## Quick Start
 
@@ -279,7 +281,7 @@ mosquitto_sub -h localhost -t 'pgbalancer/cluster/failover'
 mosquitto_sub -h localhost -t 'pgbalancer/health'
 ```
 
-**For complete setup instructions, see the [Quick Start Guide](https://pgelephant.github.io/pgbalancer/getting-started/quick-start/).**
+**For complete setup instructions, see the [Quick Start Guide](https://pgelephant.github.io/pgBalancer/quickstart/).**
 
 ## CLI Tool (bctl)
 
@@ -348,7 +350,7 @@ bctl watchdog-stop       # Stop watchdog
 bctl -H localhost -p 8080 -U admin -v --json status
 ```
 
-**For complete CLI reference, see the [CLI Guide](https://pgelephant.github.io/pgbalancer/user-guide/cli/).**
+**For complete CLI reference, see the [CLI Guide](https://pgelephant.github.io/pgBalancer/bctl/).**
 
 ## REST API
 
@@ -463,7 +465,7 @@ curl -s http://localhost:8080/api/v1/nodes | jq '.nodes | length'
 curl -s http://localhost:8080/api/v1/status | jq '.uptime'
 ```
 
-**For complete API documentation, see the [REST API Reference](https://pgelephant.github.io/pgbalancer/api/rest/).**
+**For complete API documentation, see the [REST API Reference](https://pgelephant.github.io/pgBalancer/rest-api/).**
 
 ## How It Works
 
@@ -484,7 +486,7 @@ Watchdog (High Availability)
 - **Health Checker**: Automatic backend monitoring
 - **Watchdog**: High availability and failover management
 
-**For detailed architecture, see the [Architecture Guide](https://pgelephant.github.io/pgbalancer/concepts/architecture/).**
+**For detailed architecture, see the [Documentation](https://pgelephant.github.io/pgBalancer/).**
 
 ## High Availability
 
@@ -501,7 +503,7 @@ pgbalancer provides comprehensive high availability features:
 - **Leader Election**: Automatic leader selection
 - **Failover Coordination**: Coordinated failover across instances
 
-**Learn more: [High Availability Guide](https://pgelephant.github.io/pgbalancer/concepts/ha/)**
+**Learn more: [Failover & Recovery Guide](https://pgelephant.github.io/pgBalancer/failover/)**
 
 ## Examples
 
@@ -545,7 +547,7 @@ bctl processes
 bctl health
 ```
 
-**For complete examples, see the [Examples Guide](https://pgelephant.github.io/pgbalancer/user-guide/examples/).**
+**For complete examples, see the [Quick Start Guide](https://pgelephant.github.io/pgBalancer/quickstart/).**
 
 ## Monitoring
 
@@ -578,7 +580,7 @@ curl http://localhost:8080/api/health | jq '.'
 curl http://localhost:8080/api/processes | jq '.'
 ```
 
-**For comprehensive monitoring guide, see [Monitoring](https://pgelephant.github.io/pgbalancer/operations/monitoring/).**
+**For comprehensive monitoring guide, see [Monitoring Integration](https://pgelephant.github.io/pgBalancer/monitoring/).**
 
 ## Troubleshooting
 
@@ -590,7 +592,7 @@ curl http://localhost:8080/api/processes | jq '.'
 - **Configuration errors**: Validate configuration file syntax and parameter values
 - **Build failures**: Ensure all prerequisites are installed (autoconf, automake, libtool)
 
-**For complete troubleshooting guide, see [Troubleshooting](https://pgelephant.github.io/pgbalancer/operations/troubleshooting/).**
+**For troubleshooting tips, see the [Documentation](https://pgelephant.github.io/pgBalancer/).**
 
 ## Development
 
@@ -610,7 +612,7 @@ python3 test_system.py
 bctl --help
 ```
 
-**For development guide, see [Development](https://pgelephant.github.io/pgbalancer/development/).**
+**For development guide, see [CONTRIBUTING.md](CONTRIBUTING.md).**
 
 ## Performance
 
@@ -624,24 +626,27 @@ bctl --help
 
 pgbalancer uses a modern architecture with REST API management, standard .conf configuration, and professional CLI tools.
 
-**For detailed architecture information, see the [Architecture Guide](https://pgelephant.github.io/pgbalancer/concepts/architecture/).**
+**For detailed architecture information, see the [Documentation](https://pgelephant.github.io/pgBalancer/).**
 
 ## Documentation
 
-**Complete documentation is available at: https://pgelephant.github.io/pgbalancer/**
+**Complete documentation is available at: https://pgelephant.github.io/pgBalancer/**
 
 ### Documentation Sections
 
-- **[Getting Started](https://pgelephant.github.io/pgbalancer/getting-started/)** - Installation and quick start
-- **[User Guide](https://pgelephant.github.io/pgbalancer/user-guide/)** - Configuration and usage
-- **[API Reference](https://pgelephant.github.io/pgbalancer/api/)** - REST API and CLI documentation
-- **[Core Concepts](https://pgelephant.github.io/pgbalancer/concepts/)** - Architecture and features
-- **[Operations](https://pgelephant.github.io/pgbalancer/operations/)** - Monitoring and best practices
-- **[Development](https://pgelephant.github.io/pgbalancer/development/)** - Building and contributing
+- **[Installation](https://pgelephant.github.io/pgBalancer/installation/)** - Installation instructions
+- **[Quick Start](https://pgelephant.github.io/pgBalancer/quickstart/)** - Get started quickly
+- **[Configuration](https://pgelephant.github.io/pgBalancer/configuration/)** - Configuration guide
+- **[AI Load Balancing](https://pgelephant.github.io/pgBalancer/ai-load-balancing/)** - Machine learning features
+- **[REST API Reference](https://pgelephant.github.io/pgBalancer/rest-api/)** - REST API documentation
+- **[CLI Tool (bctl)](https://pgelephant.github.io/pgBalancer/bctl/)** - CLI command reference
+- **[Connection Pooling](https://pgelephant.github.io/pgBalancer/connection-pooling/)** - Pooling configuration
+- **[Failover & Recovery](https://pgelephant.github.io/pgBalancer/failover/)** - High availability
+- **[Performance Tuning](https://pgelephant.github.io/pgBalancer/performance/)** - Optimization guide
 
 ## Community and Support
 
-- **Documentation**: [https://pgelephant.github.io/pgbalancer/](https://pgelephant.github.io/pgbalancer/)
+- **Documentation**: [https://pgelephant.github.io/pgBalancer/](https://pgelephant.github.io/pgBalancer/)
 - **Issues**: [GitHub Issues](https://github.com/pgelephant/pgbalancer/issues)
 - **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md)
 - **License**: [PostgreSQL License](COPYING)
