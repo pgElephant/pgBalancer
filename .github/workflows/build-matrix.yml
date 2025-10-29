@@ -344,6 +344,8 @@ jobs:
             autoconf \
             automake \
             libtool \
+            bison \
+            flex \
             postgresql-server-dev-${{ matrix.pg_version }} \
             libssl-dev \
             libmemcached-dev \
