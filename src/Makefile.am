@@ -100,9 +100,9 @@ pkgdata_DATA = sql/insert_lock.sql \
 #ACLOCAL_AMFLAGS = -I m4
 
 pgbalancer_LDADD = -L@PGSQL_LIB_DIR@ -lpq parser/libsql-parser.a \
-						parser/nodes.o \
-						watchdog/lib-watchdog.a \
-						-lpthread -lyaml
+					parser/nodes.o \
+					watchdog/lib-watchdog.a \
+					-lpthread
 if enable_rpath
   pgbalancer_LDFLAGS = -rpath @PGSQL_LIB_DIR@ -rpath $(libdir)
 else

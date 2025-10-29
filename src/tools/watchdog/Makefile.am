@@ -24,7 +24,7 @@ nodist_wd_cli_SOURCES = ssl_utils.c \
 		psprintf.c \
 		md5.c
 
-wd_cli_LDADD = -lyaml
+wd_cli_LDADD =
 
 DEFS = @DEFS@ \
     -DDEFAULT_CONFIGDIR=\"$(sysconfdir)\" -DPOOL_TOOLS

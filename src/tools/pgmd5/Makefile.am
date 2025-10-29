@@ -12,7 +12,7 @@ nodist_pg_md5_SOURCES = md5.c \
 		fe_memutils.c \
 		pool_path.c
 
-pg_md5_LDADD = -lyaml
+pg_md5_LDADD =
 
 DEFS = @DEFS@ \
     -DDEFAULT_CONFIGDIR=\"$(sysconfdir)\" -DPOOL_TOOLS

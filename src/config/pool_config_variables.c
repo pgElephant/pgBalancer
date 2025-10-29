@@ -68,7 +68,7 @@ static void initialize_config_gen(struct config_generic *gen);
 
 static struct config_generic *find_option(const char *name, int elevel);
 
-/* config_post_processor is now public - called from YAML parser */
+/* config_post_processor is public for configuration processing */
 bool config_post_processor(ConfigContext context, int elevel);
 
 static void sort_config_vars(void);
@@ -514,11 +514,11 @@ static struct config_bool ConfigureNamesBool[] =
 
 	{
 		{"load_balance_mode_algo", CFGCXT_RELOAD, LOAD_BALANCE_CONFIG,
-			"Load balance algorithm: 'heuristic' (default) or 'ai'.",
-			CONFIG_VAR_TYPE_STRING, false, 0
+			"Load balance algorithm: off = heuristic (default), on = AI.",
+			CONFIG_VAR_TYPE_BOOL, false, 0
 		},
 		&g_pool_config.load_balance_mode_algo,
-		"heuristic",
+		false,
 		NULL, NULL, NULL
 	},
 
@@ -3380,7 +3380,7 @@ set_one_config_option(const char *name, const char *value,
 					  ConfigContext context, GucSource source, int elevel)
 {
 	/* Just set the option - don't run post-processor yet */
-	/* Post-processor will be called once after all YAML parameters are loaded */
+	/* Post-processor will be called after all parameters are loaded */
 	return setConfigOption(name, value, context, source, elevel);
 }
 

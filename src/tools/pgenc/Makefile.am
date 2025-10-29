@@ -14,7 +14,7 @@ nodist_pg_enc_SOURCES = ssl_utils.c \
 		fe_memutils.c \
 		pool_path.c
 
-pg_enc_LDADD = -lyaml
+pg_enc_LDADD =
 
 DEFS = @DEFS@ \
     -DDEFAULT_CONFIGDIR=\"$(sysconfdir)\" -DPOOL_TOOLS
