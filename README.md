@@ -14,10 +14,6 @@
 
 **pgbalancer** is an AI-based PostgreSQL load balancer and connection pooler that provides intelligent query routing, comprehensive REST API, MQTT event streaming, and professional CLI tool. Built as a modern fork of pgpool-II with AI-powered load balancing and HTTP-based management.
 
-**Now part of the unified pgElephant high-availability suite.**
-- Consistent UI and documentation across [pgbalancer](https://pgelephant.com/pgbalancer), [RAM](https://pgelephant.com/ram), [RALE](https://pgelephant.com/rale), and [FauxDB](https://pgelephant.com/fauxdb).
-- All product pages use a single, professional template for a seamless experience.
-- See the [website](https://pgelephant.com) for live demos and feature comparisons.
 
 **Supported PostgreSQL versions**: 13, 14, 15, 16, 17, 18
 
@@ -31,34 +27,34 @@
 
 ## Key Features
 
-### 🤖 AI-Powered Load Balancing
+### AI-Powered Load Balancing
 - **Intelligent Query Routing**: Machine learning algorithms analyze query patterns and server performance
 - **Adaptive Learning**: Automatic optimization based on response times and server health
 - **Health Scoring**: Real-time scoring system weights backends by performance and availability
 - **Predictive Routing**: Learns from historical data to predict optimal backend selection
 - **Configuration**: Adjustable learning rate, exploration rate, and weight parameters
 
-### 🌐 REST API Management
+### REST API Management
 - **17 HTTP/JSON Endpoints**: Complete cluster management via REST API
 - **Integrated API Server**: Runs as child process on port 8080
 - **JWT Authentication**: Optional HMAC-SHA256 tokens for secure access
 - **Real-time Data**: Live backend statistics, pool information, and health metrics
 - **Sub-10ms Response**: High-performance API with minimal latency
 
-### 📡 MQTT Event Streaming
+### MQTT Event Streaming
 - **Real-time Events**: Publish node status changes, failovers, and health checks
 - **Configurable Topics**: Custom MQTT topics for different event types
 - **Monitoring Integration**: Connect to Mosquitto, EMQX, or any MQTT broker
 - **Automation Ready**: Trigger alerts and orchestration based on cluster events
 
-### 🛠️ Professional CLI Tool (bctl)
+### Professional CLI Tool (bctl)
 - **Unified Interface**: Single tool replaces 10+ separate pcp_* commands
 - **3 Output Formats**: Human-readable tables, JSON, or default format
 - **Real-time Data**: Direct access to pgbalancer statistics and status
 - **Remote Management**: Connect to any pgbalancer instance
 - **Box-drawing Tables**: Professional output with proper formatting
 
-### 💪 Core Features
+### Core Features
 - **Connection Pooling**: Efficient connection reuse and management
 - **Load Balancing**: Distribute queries across multiple PostgreSQL servers
 - **High Availability**: Automatic failover with watchdog support
@@ -99,19 +95,23 @@
 
 ## Installation
 
-### Quick install (60 seconds)
+### Quick install
 
-Prerequisites: PostgreSQL 13+ with development headers, make, gcc/clang, json-c, libyaml
+Prerequisites: PostgreSQL 13+ with development headers, autoconf, automake, libtool, make, gcc/clang
 
 ```bash
 # Clone and configure
 git clone https://github.com/pgelephant/pgbalancer.git
 cd pgbalancer
+
+# Generate configure script if needed
+autoreconf -fi
+
+# Configure with options
 ./configure --with-openssl --with-pam --with-ldap
 
-# Build core components
-make -C src startup.o  # Test compilation
-make -C bin/bctl      # Build CLI tool
+# Build
+make
 
 # Install
 sudo make install
@@ -509,22 +509,27 @@ pgbalancer provides comprehensive high availability features:
 
 Configure pgbalancer with multiple backends:
 
-```yaml
-backend_servers:
-  - hostname: "pg-primary"
-    port: 5432
-    weight: 1
-    role: "primary"
-    
-  - hostname: "pg-replica1"
-    port: 5432
-    weight: 1
-    role: "standby"
-    
-  - hostname: "pg-replica2"
-    port: 5432
-    weight: 1
-    role: "standby"
+```conf
+# Backend 0 - Primary
+backend_hostname0 = 'pg-primary'
+backend_port0 = 5432
+backend_weight0 = 1
+backend_data_directory0 = '/var/lib/postgresql/data'
+backend_flag0 = 'ALLOW_TO_FAILOVER'
+
+# Backend 1 - Standby
+backend_hostname1 = 'pg-replica1'
+backend_port1 = 5432
+backend_weight1 = 1
+backend_data_directory1 = '/var/lib/postgresql/data'
+backend_flag1 = 'ALLOW_TO_FAILOVER'
+
+# Backend 2 - Standby
+backend_hostname2 = 'pg-replica2'
+backend_port2 = 5432
+backend_weight2 = 1
+backend_data_directory2 = '/var/lib/postgresql/data'
+backend_flag2 = 'ALLOW_TO_FAILOVER'
 ```
 
 ### Load Balancing
@@ -582,7 +587,8 @@ curl http://localhost:8080/api/processes | jq '.'
 - **Cannot connect**: Check `listen_addresses` and firewall settings
 - **Backend not found**: Verify backend server configuration and connectivity
 - **CLI connection failed**: Ensure pgbalancer is running and REST API is enabled
-- **YAML parsing errors**: Validate YAML syntax and indentation
+- **Configuration errors**: Validate configuration file syntax and parameter values
+- **Build failures**: Ensure all prerequisites are installed (autoconf, automake, libtool)
 
 **For complete troubleshooting guide, see [Troubleshooting](https://pgelephant.github.io/pgbalancer/operations/troubleshooting/).**
 
@@ -616,13 +622,9 @@ bctl --help
 
 ## Architecture
 
-pgbalancer uses a modern architecture with REST API management, YAML configuration, and professional CLI tools.
+pgbalancer uses a modern architecture with REST API management, standard .conf configuration, and professional CLI tools.
 
 **For detailed architecture information, see the [Architecture Guide](https://pgelephant.github.io/pgbalancer/concepts/architecture/).**
-
-## License
-
-PostgreSQL License - see COPYING file for details.
 
 ## Documentation
 
@@ -655,14 +657,10 @@ PostgreSQL License - see COPYING file for details.
 
 - **[pgpool-II](https://www.pgpool.net/)** - Original PostgreSQL connection pooler
 - **[PostgreSQL](https://www.postgresql.org/)** - The world's most advanced open source database
-- **[pgraft](https://pgelephant.com/pgraft)** - Raft-based PostgreSQL extension for high availability
-- **[RAM](https://pgelephant.com/ram)** - PostgreSQL clustering and failover manager
-- **[RALE](https://pgelephant.com/rale)** - Distributed consensus and key-value store
-- **[FauxDB](https://pgelephant.com/fauxdb)** - MongoDB-compatible query proxy for PostgreSQL
 
 ## SEO/Discoverability keywords
 
-PostgreSQL connection pooler, pgpool REST API, PostgreSQL load balancer, pgbalancer CLI, PostgreSQL high availability, connection pooling, PostgreSQL YAML configuration, REST API management, bctl command line tool, PostgreSQL cluster management, pgpool-II fork, modern PostgreSQL tools
+PostgreSQL connection pooler, pgpool REST API, PostgreSQL load balancer, pgbalancer CLI, PostgreSQL high availability, connection pooling, AI load balancing, MQTT event streaming, REST API management, bctl command line tool, PostgreSQL cluster management, pgpool-II fork, modern PostgreSQL tools
 
 ---
 
@@ -671,6 +669,6 @@ PostgreSQL connection pooler, pgpool REST API, PostgreSQL load balancer, pgbalan
 Copyright (c) 2003-2021 PgPool Global Development Group  
 Copyright (c) 2024-2025, pgElephant, Inc.
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the PostgreSQL License - see the [COPYING](COPYING) file for details.
 
 Made with care for the PostgreSQL community
