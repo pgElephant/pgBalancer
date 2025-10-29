@@ -439,7 +439,7 @@ show_config_table(void)
 	int i;
 	char buf[256];
 	
-	/* Show structured sections matching YAML layout */
+	/* Show structured sections */
 	
 	/* CLUSTERING */
 	printf("\nCLUSTERING:\n");
@@ -711,7 +711,7 @@ usage(void)
 	fprintf(stderr, "                      Set the path to the pool_hba.conf configuration file\n");
 	fprintf(stderr, "                      (default: %s/%s)\n", DEFAULT_CONFIGDIR, HBA_CONF_FILE_NAME);
 	fprintf(stderr, "  -f, --config-file=CONFIG_FILE\n");
-	fprintf(stderr, "                      Set the path to the pgbalancer configuration file (YAML format)\n");
+	fprintf(stderr, "                      Set the path to the pgbalancer configuration file (.conf format)\n");
 	fprintf(stderr, "                      (default: %s/%s)\n", DEFAULT_CONFIGDIR, POOL_CONF_FILE_NAME);
 	fprintf(stderr, "  -k, --key-file=KEY_FILE\n");
 	fprintf(stderr, "                      Set the path to the pgbalancer key file\n");

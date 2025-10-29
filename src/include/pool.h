@@ -34,7 +34,7 @@
 #define POOLKEYFILE 	".pgbalancerkey"
 #define POOLKEYFILEENV "PGBALANCERKEYFILE"
 
-#define POOL_CONF_FILE_NAME "pgbalancer.yaml"
+#define POOL_CONF_FILE_NAME "pgbalancer.conf"
 
 /* PCP user/password file name - PCP removed, kept for compatibility */
 #define PCP_PASSWD_FILE_NAME "pcp.conf"
