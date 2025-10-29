@@ -180,6 +180,8 @@ jobs:
             autoconf \
             automake \
             libtool \
+            bison \
+            flex \
             redhat-rpm-config \
             postgresql${{ matrix.pg_version }}-devel \
             libpq \
@@ -423,6 +425,8 @@ jobs:
             autoconf \
             automake \
             libtool \
+            bison \
+            flex \
             postgresql${{ matrix.pg_version }}-devel \
             openssl-devel \
             libmemcached-devel \
