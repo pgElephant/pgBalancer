@@ -543,7 +543,7 @@ jobs:
       - name: Download all package artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: '{rpm,deb}-*'
+          pattern: '{rpm,deb,build}-*'
           path: artifacts
       
       - name: Organize release packages
@@ -569,6 +569,146 @@ jobs:
             echo "⚠️  Warning: No packages found for release"
             echo "This is expected if package builds were skipped or failed"
             echo "has_packages=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Copy packages to local releases directory
+        if: steps.packages.outputs.has_packages == 'true'
+        run: |
+          # Create local releases directory structure
+          RELEASES_DIR="/Users/pgedge/pge/releases"
+          
+          if [ -d "$RELEASES_DIR" ]; then
+            echo "📦 Copying packages to $RELEASES_DIR (organized by PostgreSQL version)"
+            
+            # Function to extract PostgreSQL version from filename
+            extract_pg_version() {
+              local filename="$1"
+              # Try to match patterns like pg16, pg17, postgresql-16, postgresql-17, etc.
+              if [[ "$filename" =~ pg([0-9]+) ]] || [[ "$filename" =~ postgresql-([0-9]+) ]] || [[ "$filename" =~ pg_([0-9]+) ]]; then
+                echo "${BASH_REMATCH[1]}"
+              elif [[ "$filename" =~ -pg([0-9]+) ]]; then
+                echo "${BASH_REMATCH[1]}"
+              else
+                # Try to find version in artifact names
+                for pg_ver in 13 14 15 16 17 18; do
+                  if [[ "$filename" =~ pg${pg_ver} ]] || [[ "$filename" =~ -pg${pg_ver} ]]; then
+                    echo "$pg_ver"
+                    return
+                  fi
+                done
+                # Default to version from artifact name pattern
+                if [[ "$filename" =~ build-.*-pg([0-9]+) ]]; then
+                  echo "${BASH_REMATCH[1]}"
+                elif [[ "$filename" =~ rpm-.*-pg([0-9]+) ]] || [[ "$filename" =~ deb-.*-pg([0-9]+) ]]; then
+                  echo "${BASH_REMATCH[1]}"
+                else
+                  echo ""
+                fi
+              fi
+            }
+            
+            # Copy RPM packages to versioned directories
+            echo "📦 Organizing RPM packages..."
+            find release -name '*.rpm' | while read rpm_file; do
+              filename=$(basename "$rpm_file")
+              pg_version=$(extract_pg_version "$filename")
+              
+              if [ -n "$pg_version" ]; then
+                mkdir -p "$RELEASES_DIR/rpm/pg${pg_version}"
+                cp -v "$rpm_file" "$RELEASES_DIR/rpm/pg${pg_version}/"
+                echo "  ✓ Copied to rpm/pg${pg_version}/"
+              else
+                # Try to find version from artifact directory structure
+                for pg_ver in 13 14 15 16 17 18; do
+                  if [[ "$rpm_file" =~ pg${pg_ver} ]] || find artifacts -path "*pg${pg_ver}*" -name "$(basename $rpm_file)" 2>/dev/null | grep -q .; then
+                    mkdir -p "$RELEASES_DIR/rpm/pg${pg_ver}"
+                    cp -v "$rpm_file" "$RELEASES_DIR/rpm/pg${pg_ver}/"
+                    echo "  ✓ Copied to rpm/pg${pg_ver}/"
+                    break
+                  fi
+                done
+              fi
+            done
+            
+            # Copy DEB packages to versioned directories
+            echo "📦 Organizing DEB packages..."
+            find release -name '*.deb' | while read deb_file; do
+              filename=$(basename "$deb_file")
+              pg_version=$(extract_pg_version "$filename")
+              
+              if [ -n "$pg_version" ]; then
+                mkdir -p "$RELEASES_DIR/deb/pg${pg_version}"
+                cp -v "$deb_file" "$RELEASES_DIR/deb/pg${pg_version}/"
+                echo "  ✓ Copied to deb/pg${pg_version}/"
+              else
+                # Try to find version from artifact directory structure
+                for pg_ver in 13 14 15 16 17 18; do
+                  if [[ "$deb_file" =~ pg${pg_ver} ]] || find artifacts -path "*pg${pg_ver}*" -name "$(basename $deb_file)" 2>/dev/null | grep -q .; then
+                    mkdir -p "$RELEASES_DIR/deb/pg${pg_ver}"
+                    cp -v "$deb_file" "$RELEASES_DIR/deb/pg${pg_ver}/"
+                    echo "  ✓ Copied to deb/pg${pg_ver}/"
+                    break
+                  fi
+                done
+              fi
+            done
+            
+            # Copy macOS artifacts to versioned directories
+            echo "📦 Organizing macOS packages..."
+            find artifacts -name 'build-*-macos-*' -o -name '*-macos-pg*' | while read osx_file; do
+              if [ -f "$osx_file" ]; then
+                filename=$(basename "$osx_file")
+                pg_version=$(extract_pg_version "$filename")
+                
+                if [ -n "$pg_version" ]; then
+                  mkdir -p "$RELEASES_DIR/osx/pg${pg_version}"
+                  cp -v "$osx_file" "$RELEASES_DIR/osx/pg${pg_version}/"
+                  echo "  ✓ Copied to osx/pg${pg_version}/"
+                else
+                  # Extract from artifact path pattern
+                  for pg_ver in 13 14 15 16 17 18; do
+                    if [[ "$osx_file" =~ -pg${pg_ver} ]] || [[ "$osx_file" =~ macos-pg${pg_ver} ]]; then
+                      mkdir -p "$RELEASES_DIR/osx/pg${pg_ver}"
+                      cp -v "$osx_file" "$RELEASES_DIR/osx/pg${pg_ver}/"
+                      echo "  ✓ Copied to osx/pg${pg_ver}/"
+                      break
+                    fi
+                  done
+                fi
+              fi
+            done
+            
+            # Copy checksums to each version directory
+            if [ -f release/SHA256SUMS ]; then
+              echo "📦 Copying checksums..."
+              for pg_ver in 13 14 15 16 17 18; do
+                if [ -d "$RELEASES_DIR/rpm/pg${pg_ver}" ]; then
+                  cp -v release/SHA256SUMS "$RELEASES_DIR/rpm/pg${pg_ver}/" 2>/dev/null || true
+                fi
+                if [ -d "$RELEASES_DIR/deb/pg${pg_ver}" ]; then
+                  cp -v release/SHA256SUMS "$RELEASES_DIR/deb/pg${pg_ver}/" 2>/dev/null || true
+                fi
+                if [ -d "$RELEASES_DIR/osx/pg${pg_ver}" ]; then
+                  cp -v release/SHA256SUMS "$RELEASES_DIR/osx/pg${pg_ver}/" 2>/dev/null || true
+                fi
+              done
+            fi
+            
+            echo ""
+            echo "✅ Packages organized successfully"
+            echo ""
+            echo "📂 Package Summary:"
+            for pg_ver in 13 14 15 16 17 18; do
+              if [ -d "$RELEASES_DIR/rpm/pg${pg_ver}" ]; then
+                echo "  PostgreSQL ${pg_ver}:"
+                echo "    RPM: $(ls -1 "$RELEASES_DIR/rpm/pg${pg_ver}"/*.rpm 2>/dev/null | wc -l) packages"
+                echo "    DEB: $(ls -1 "$RELEASES_DIR/deb/pg${pg_ver}"/*.deb 2>/dev/null | wc -l) packages"
+                echo "    macOS: $(ls -1 "$RELEASES_DIR/osx/pg${pg_ver}" 2>/dev/null | wc -l) packages"
+              fi
+            done
+          else
+            echo "⚠️  Warning: Releases directory not found at $RELEASES_DIR"
+            echo "This step will be skipped in GitHub Actions runners"
           fi
       
       - name: Create GitHub Release
