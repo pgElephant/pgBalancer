@@ -547,19 +547,40 @@ jobs:
           path: artifacts
       
       - name: Organize release packages
+        id: packages
         run: |
           mkdir -p release
           find artifacts -name '*.rpm' -exec cp {} release/ \; 2>/dev/null || true
           find artifacts -name '*.deb' -exec cp {} release/ \; 2>/dev/null || true
-          cd release && sha256sum *.rpm *.deb > SHA256SUMS 2>/dev/null || true
-          ls -lh
+          
+          # Generate checksums only if packages exist
+          cd release
+          PACKAGE_COUNT=$(ls -1 *.rpm *.deb 2>/dev/null | wc -l)
+          
+          if [ "$PACKAGE_COUNT" -gt 0 ]; then
+            sha256sum *.rpm *.deb 2>/dev/null > SHA256SUMS || true
+            echo "📦 Release packages found: $PACKAGE_COUNT"
+            ls -lh
+            echo ""
+            echo "🔐 SHA256 Checksums:"
+            cat SHA256SUMS
+            echo "has_packages=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️  Warning: No packages found for release"
+            echo "This is expected if package builds were skipped or failed"
+            echo "has_packages=false" >> $GITHUB_OUTPUT
+          fi
       
       - name: Create GitHub Release
+        if: steps.packages.outputs.has_packages == 'true'
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event.inputs.release_tag }}
           name: pgbalancer ${{ needs.prepare.outputs.version }}
-          files: release/*
+          files: |
+            release/*.rpm
+            release/*.deb
+            release/SHA256SUMS
           body: |
             ## pgbalancer ${{ needs.prepare.outputs.version }}-${{ needs.prepare.outputs.release }}
             
