@@ -615,7 +615,7 @@ jobs:
           **Create minimal configuration:**
           ```bash
           sudo mkdir -p /etc/pgbalancer
-          sudo tee /etc/pgbalancer/pgbalancer.conf > /dev/null << 'EOF'
+          sudo tee /etc/pgbalancer/pgbalancer.conf > /dev/null <<INNEREOF
           # Basic settings
           listen_addresses = '*'
           port = 5432
@@ -664,7 +664,7 @@ jobs:
           mqtt_port = 1883
           mqtt_client_id = 'pgbalancer'
           mqtt_topic_prefix = 'pgbalancer'
-          EOF
+          INNEREOF
           ```
           
           ## Step 2: Start pgbalancer

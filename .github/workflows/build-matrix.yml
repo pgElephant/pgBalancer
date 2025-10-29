@@ -170,6 +170,9 @@ jobs:
           $SUDO dnf install -y --nogpgcheck https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-${ARCH}/pgdg-redhat-repo-latest.noarch.rpm
           $SUDO dnf -qy module disable postgresql
           
+          # Update to refresh package lists
+          $SUDO dnf update -y
+          
           # Install build dependencies
           $SUDO dnf install -y --setopt=deltarpm=0 --setopt=install_weak_deps=false \
             gcc \
@@ -179,11 +182,17 @@ jobs:
             libtool \
             redhat-rpm-config \
             postgresql${{ matrix.pg_version }}-devel \
+            libpq \
             openssl-devel \
             libmemcached-devel \
             pam-devel \
             openldap-devel \
             pkg-config
+          
+          # Verify PostgreSQL is installed
+          echo "Verifying PostgreSQL installation..."
+          $SUDO find /usr -name "pg_config" 2>/dev/null || echo "pg_config not found"
+          $SUDO ls -la /usr/pgsql-${{ matrix.pg_version }}/bin/pg_config || echo "PostgreSQL binaries not in expected location"
       
       - name: Build pgbalancer
         run: |
@@ -194,7 +203,18 @@ jobs:
             export CPPFLAGS="-I/opt/homebrew/opt/openssl/include"
             export LDFLAGS="-L/opt/homebrew/opt/openssl/lib"
           elif [ "${{ matrix.platform }}" = "rocky" ]; then
-            export PG_CONFIG=/usr/pgsql-${{ matrix.pg_version }}/bin/pg_config
+            # Try different PostgreSQL paths
+            if [ -f /usr/pgsql-${{ matrix.pg_version }}/bin/pg_config ]; then
+              export PG_CONFIG=/usr/pgsql-${{ matrix.pg_version }}/bin/pg_config
+            elif [ -f /usr/bin/pg_config ]; then
+              export PG_CONFIG=/usr/bin/pg_config
+            else
+              echo "Error: pg_config not found. Searching..."
+              find /usr -name "pg_config" 2>/dev/null
+              exit 1
+            fi
+            echo "Using PG_CONFIG: $PG_CONFIG"
+            $PG_CONFIG --version
           else
             export PG_CONFIG=/usr/lib/postgresql/${{ matrix.pg_version }}/bin/pg_config
           fi
@@ -425,7 +445,7 @@ jobs:
             ARCH=\$(uname -m)
             dnf install -y --nogpgcheck https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-\${ARCH}/pgdg-redhat-repo-latest.noarch.rpm
             dnf -qy module disable postgresql
-            dnf install -y --nogpgcheck postgresql${{ matrix.pg_version }}-server libyaml
+            dnf install -y --nogpgcheck postgresql${{ matrix.pg_version }}-server
             dnf install -y --nogpgcheck /pkg/*.rpm || true
             echo '✅ RPM installation test completed'
           "
@@ -439,7 +459,7 @@ jobs:
             wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
             echo 'deb [signed-by=/usr/share/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt jammy-pgdg main' > /etc/apt/sources.list.d/pgdg.list
             apt-get update
-            apt-get install -y postgresql-${{ matrix.pg_version }} libyaml-0-2
+            apt-get install -y postgresql-${{ matrix.pg_version }}
             dpkg -i /pkg/*.deb || apt-get install -f -y
             echo '✅ DEB installation test completed'
           "
