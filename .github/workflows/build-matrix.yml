@@ -175,6 +175,9 @@ jobs:
           # Set PG_CONFIG based on platform
           if [ "${{ matrix.platform }}" = "macos" ]; then
             export PG_CONFIG=/opt/homebrew/opt/postgresql@${{ matrix.pg_version }}/bin/pg_config
+            # Set OpenSSL paths for macOS
+            export CPPFLAGS="-I/opt/homebrew/opt/openssl/include"
+            export LDFLAGS="-L/opt/homebrew/opt/openssl/lib"
           elif [ "${{ matrix.platform }}" = "rocky" ]; then
             export PG_CONFIG=/usr/pgsql-${{ matrix.pg_version }}/bin/pg_config
           else
@@ -195,7 +198,7 @@ jobs:
           fi
           
           # Configure and build
-          ./configure --with-openssl --with-pam --with-ldap --with-memcached
+          ./configure --with-openssl --with-pam --with-ldap
           make clean
           make -C src
           make -C bctl
@@ -278,7 +281,7 @@ jobs:
           fi
           
           # Build pgbalancer (actual DEB creation would use debian/ directory structure)
-          ./configure --with-openssl --with-pam --with-ldap --with-memcached
+          ./configure --with-openssl --with-pam --with-ldap
           make PG_CONFIG=/usr/lib/postgresql/${{ matrix.pg_version }}/bin/pg_config
           
           # Organize packages in release folder structure
@@ -354,7 +357,7 @@ jobs:
           
           # Build pgbalancer (actual RPM creation would use .spec file)
           rpmdev-setuptree
-          ./configure --with-openssl --with-pam --with-ldap --with-memcached
+          ./configure --with-openssl --with-pam --with-ldap
           make PG_CONFIG=/usr/pgsql-${{ matrix.pg_version }}/bin/pg_config
           
           # Organize packages in release folder structure

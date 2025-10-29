@@ -22,11 +22,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  build:
+    name: Build MkDocs Documentation
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -113,22 +111,32 @@ jobs:
               - Installation: installation.md
               - Quick Start: quickstart.md
               - Configuration: configuration.md
-            - Features:
-              - REST API: rest-api.md
-              - CLI Tool (bctl): bctl.md
-              - YAML Config: yaml-config.md
-              - pgraft Integration: pgraft-integration.md
+            - Core Features:
               - AI Load Balancing: ai-load-balancing.md
+              - REST API Reference: rest-api.md
+              - MQTT Event Streaming: mqtt-events.md
+              - CLI Tool (bctl): bctl.md
             - Operations:
-              - Connection Pooling: pooling.md
+              - Connection Pooling: connection-pooling.md
               - Load Balancing: load-balancing.md
               - Failover & Recovery: failover.md
-              - Monitoring: monitoring.md
+              - Health Monitoring: health-monitoring.md
+              - Performance Tuning: performance.md
+            - Advanced Topics:
+              - Watchdog: watchdog.md
+              - SSL/TLS: ssl.md
+              - Authentication: authentication.md
+              - Monitoring Integration: monitoring.md
             - Reference:
               - Configuration Parameters: parameters.md
-              - REST API Reference: api-reference.md
-              - Comparison: comparison.md
-            - About:
+              - REST API Endpoints: api-endpoints.md
+              - CLI Commands: cli-commands.md
+              - Error Codes: error-codes.md
+              - Examples: examples.md
+            - Appendices:
+              - Release Notes: release-notes.md
+              - Migration Guide: migration.md
+              - FAQ: faq.md
               - License: license.md
           
           plugins:
@@ -142,43 +150,58 @@ jobs:
                 link: https://github.com/pgelephant/pgbalancer
           EOFCONFIG
           
-          # Create index.md
+          # Create comprehensive index.md
           cat > docs/index.md << 'EOF'
-          # pgbalancer
+          # pgbalancer Documentation
           
-          **Modern PostgreSQL Connection Pooler with REST API**
+          **AI-Based PostgreSQL Load Balancer and Connection Pooler**
           
-          Production-ready connection pooling, load balancing, and high availability for PostgreSQL 13-18.
+          pgbalancer is a modern PostgreSQL connection pooler and load balancer built as a fork of pgpool-II with significant enhancements for intelligent query routing, HTTP-based management, and real-time event streaming.
           
           ## Overview
           
-          pgbalancer is a modern fork of pgpool-II that provides enterprise-grade connection pooling and load balancing with a comprehensive REST API, professional CLI tool, and YAML configuration support.
+          pgbalancer provides enterprise-grade connection pooling, load balancing, and high availability for PostgreSQL 13-18, enhanced with AI-powered load balancing, comprehensive REST API, MQTT event streaming, and professional CLI tools.
           
           **Key Features:**
           
+          - **AI-Powered Load Balancing** — Machine learning algorithms for intelligent query routing
           - **REST API Management** — 17 HTTP/JSON endpoints for complete cluster control
-          - **Unified CLI Tool (bctl)** — Professional command-line interface
-          - **YAML Configuration** — Modern config format with validation
-          - **pgraft Consensus** — Optional Raft-based leader election
-          - **AI Load Balancing** — Smart query distribution algorithms
-          - **JWT Authentication** — Secure API access
+          - **MQTT Event Streaming** — Real-time publishing of cluster events
+          - **Professional CLI Tool (bctl)** — Unified interface replacing 10+ pcp_* commands
+          - **Standard .conf Configuration** — pgpool-II compatible configuration format
+          - **JWT Authentication** — Secure API access with HMAC-SHA256 tokens
           - **PostgreSQL 13-18** — Full support for latest versions
+          - **High Availability** — Automatic failover with watchdog support
+          - **Connection Pooling** — Efficient connection reuse and management
+          - **Health Monitoring** — Continuous backend monitoring and health checks
           
           ## Quick Install
           
           ```bash
-          # Download from releases
-          # RPM:
-          sudo dnf install pgbalancer_17-1.0.0-1.el9.x86_64.rpm
+          # Prerequisites: PostgreSQL 13+ with development headers, autoconf, automake, libtool, make, gcc/clang
           
-          # DEB:
-          sudo apt install ./postgresql-17-pgbalancer_1.0.0-1_amd64.deb
+          # Clone and configure
+          git clone https://github.com/pgelephant/pgbalancer.git
+          cd pgbalancer
+          
+          # Generate configure script if needed
+          autoreconf -fi
+          
+          # Configure with options
+          ./configure --with-openssl --with-pam --with-ldap
+          
+          # Build
+          make
+          
+          # Install
+          sudo make install
           
           # Configure
-          vi /etc/pgbalancer/pgbalancer.yml
+          sudo cp /etc/pgbalancer/pgbalancer.conf.sample /etc/pgbalancer/pgbalancer.conf
+          sudo vi /etc/pgbalancer/pgbalancer.conf
           
           # Start
-          pgbalancer -f /etc/pgbalancer/pgbalancer.yml
+          pgbalancer -f /etc/pgbalancer/pgbalancer.conf -D
           
           # Check status
           bctl status
@@ -186,54 +209,1451 @@ jobs:
           
           ## Why pgbalancer?
           
-          - **Modern API** — HTTP/JSON instead of binary PCP protocol
-          - **Unified CLI** — Single bctl tool instead of 10+ pcp_* commands
-          - **YAML Config** — Human-readable configuration
-          - **Consensus Integration** — pgraft for split-brain prevention
-          - **Better Monitoring** — Prometheus metrics, Grafana dashboards
-          - **Production Ready** — Based on battle-tested pgpool-II
+          - **Modern API** — HTTP/JSON REST API instead of binary PCP protocol
+          - **Unified CLI** — Single bctl tool instead of 10+ separate pcp_* commands
+          - **AI Load Balancing** — Machine learning algorithms for optimal query routing
+          - **MQTT Integration** — Real-time event streaming for monitoring and automation
+          - **Better Monitoring** — Prometheus metrics, Grafana dashboards, comprehensive health checks
+          - **Production Ready** — Based on battle-tested pgpool-II with modern enhancements
+          - **Standard Configuration** — Uses proven .conf format compatible with pgpool-II
           
-          ## Documentation
+          ## Documentation Sections
           
+          ### Getting Started
           - [Installation Guide](installation.md) - Complete setup instructions
-          - [Quick Start](quickstart.md) - Get running in 5 minutes
-          - [REST API](rest-api.md) - HTTP API documentation
-          - [CLI Tool](bctl.md) - bctl command reference
-          - [Configuration](configuration.md) - All parameters explained
-          - [pgraft Integration](pgraft-integration.md) - Consensus-based leader election
-          - [Monitoring](monitoring.md) - Prometheus & Grafana setup
+          - [Quick Start Guide](quickstart.md) - Get running in 5 minutes
+          - [Configuration Guide](configuration.md) - All parameters explained
+          
+          ### Core Features
+          - [AI Load Balancing](ai-load-balancing.md) - Machine learning algorithms
+          - [REST API Reference](rest-api.md) - Complete HTTP API documentation
+          - [MQTT Event Streaming](mqtt-events.md) - Real-time event publishing
+          - [CLI Tool (bctl)](bctl.md) - Professional command-line interface
+          
+          ### Operations
+          - [Connection Pooling](connection-pooling.md) - Efficient connection management
+          - [Load Balancing](load-balancing.md) - Query distribution strategies
+          - [Failover & Recovery](failover.md) - High availability features
+          - [Health Monitoring](health-monitoring.md) - Backend monitoring
+          - [Performance Tuning](performance.md) - Optimization guidelines
+          
+          ### Advanced Topics
+          - [Watchdog](watchdog.md) - High availability coordination
+          - [SSL/TLS](ssl.md) - Secure connections
+          - [Authentication](authentication.md) - PAM, LDAP, JWT
+          - [Monitoring Integration](monitoring.md) - Prometheus & Grafana
+          
+          ### Reference
+          - [Configuration Parameters](parameters.md) - Complete parameter reference
+          - [REST API Endpoints](api-endpoints.md) - All 17 HTTP endpoints
+          - [CLI Commands](cli-commands.md) - bctl command reference
+          - [Error Codes](error-codes.md) - Troubleshooting guide
+          - [Examples](examples.md) - Configuration examples
+          
+          ### Appendices
+          - [Release Notes](release-notes.md) - Version history
+          - [Migration Guide](migration.md) - From pgpool-II
+          - [FAQ](faq.md) - Frequently asked questions
+          - [License](license.md) - PostgreSQL License
           
           ## License
           
-          PostgreSQL License (similar to MIT/BSD)
+          PostgreSQL License - see [License](license.md) for details.
           
-          See [License](license.md) for details.
+          Copyright (c) 2003-2021 PgPool Global Development Group  
+          Copyright (c) 2024-2025, pgElephant, Inc.
           EOF
           
-          # Create minimal placeholder docs (will be expanded later)
-          for page in installation quickstart configuration rest-api bctl yaml-config \
-                      pgraft-integration ai-load-balancing pooling load-balancing \
-                      failover monitoring parameters api-reference comparison license; do
+          # Create comprehensive installation guide
+          cat > docs/installation.md << 'EOF'
+          # Installation Guide
+          
+          Complete installation instructions for pgbalancer on various platforms.
+          
+          ## Prerequisites
+          
+          ### System Requirements
+          
+          - **Operating System**: Linux (Ubuntu 20.04+, CentOS 8+, Rocky Linux 8+), macOS 10.15+
+          - **PostgreSQL**: Version 13, 14, 15, 16, 17, or 18
+          - **Memory**: Minimum 512MB RAM, recommended 2GB+
+          - **Disk Space**: 100MB for installation, additional space for logs
+          
+          ### Build Dependencies
+          
+          **Ubuntu/Debian:**
+          ```bash
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            libpq-dev \
+            libssl-dev \
+            libpam0g-dev \
+            libldap2-dev \
+            libmemcached-dev \
+            git
+          ```
+          
+          **CentOS/RHEL/Rocky Linux:**
+          ```bash
+          sudo dnf groupinstall -y "Development Tools"
+          sudo dnf install -y \
+            autoconf \
+            automake \
+            libtool \
+            pkgconfig \
+            postgresql-devel \
+            openssl-devel \
+            pam-devel \
+            openldap-devel \
+            libmemcached-devel \
+            git
+          ```
+          
+          **macOS (Homebrew):**
+          ```bash
+          brew install autoconf automake libtool pkg-config
+          brew install postgresql openssl pam openldap libmemcached
+          ```
+          
+          ## Installation Methods
+          
+          ### Method 1: Build from Source (Recommended)
+          
+          **Step 1: Clone Repository**
+          ```bash
+          git clone https://github.com/pgelephant/pgbalancer.git
+          cd pgbalancer
+          ```
+          
+          **Step 2: Generate Configure Script**
+          ```bash
+          # Generate configure script if it doesn't exist
+          autoreconf -fi
+          ```
+          
+          **Step 3: Configure Build**
+          ```bash
+          # Basic configuration
+          ./configure
+          
+          # With all optional features
+          ./configure \
+            --with-openssl \
+            --with-pam \
+            --with-ldap \
+            --with-memcached \
+            --prefix=/usr/local/pgbalancer
+          ```
+          
+          **Step 4: Build**
+          ```bash
+          make
+          ```
+          
+          **Step 5: Install**
+          ```bash
+          sudo make install
+          ```
+          
+          **Step 6: Verify Installation**
+          ```bash
+          pgbalancer --version
+          bctl --version
+          ```
+          
+          ### Method 2: Package Installation
+          
+          **RPM Packages (CentOS/RHEL/Rocky):**
+          ```bash
+          # Download appropriate RPM for your PostgreSQL version
+          wget https://github.com/pgelephant/pgbalancer/releases/download/v1.0.0/pgbalancer-1.0.0-1.el9.x86_64.rpm
+          sudo dnf install pgbalancer-1.0.0-1.el9.x86_64.rpm
+          ```
+          
+          **DEB Packages (Ubuntu/Debian):**
+          ```bash
+          # Download appropriate DEB for your PostgreSQL version
+          wget https://github.com/pgelephant/pgbalancer/releases/download/v1.0.0/postgresql-17-pgbalancer_1.0.0-1_amd64.deb
+          sudo apt install ./postgresql-17-pgbalancer_1.0.0-1_amd64.deb
+          ```
+          
+          ## PostgreSQL Configuration
+          
+          **Step 1: Configure PostgreSQL**
+          
+          Edit `postgresql.conf`:
+          ```ini
+          # Enable connection pooling
+          max_connections = 200
+          
+          # Enable streaming replication (for HA setups)
+          wal_level = replica
+          max_wal_senders = 10
+          hot_standby = on
+          
+          # Enable SSL (optional)
+          ssl = on
+          ssl_cert_file = 'server.crt'
+          ssl_key_file = 'server.key'
+          ```
+          
+          **Step 2: Configure pg_hba.conf**
+          ```ini
+          # Allow pgbalancer connections
+          host    all             all             127.0.0.1/32            md5
+          host    all             all             10.0.0.0/8             md5
+          
+          # Allow replication (for HA setups)
+          host    replication     all             127.0.0.1/32            md5
+          host    replication     all             10.0.0.0/8             md5
+          ```
+          
+          **Step 3: Restart PostgreSQL**
+          ```bash
+          # Linux (systemd)
+          sudo systemctl restart postgresql
+          
+          # macOS
+          pg_ctl restart -D /usr/local/var/postgres
+          ```
+          
+          ## pgbalancer Configuration
+          
+          **Step 1: Create Configuration Directory**
+          ```bash
+          sudo mkdir -p /etc/pgbalancer
+          sudo chown postgres:postgres /etc/pgbalancer
+          ```
+          
+          **Step 2: Create Configuration File**
+          ```bash
+          sudo cp /usr/local/share/doc/pgbalancer/pgbalancer.conf.sample /etc/pgbalancer/pgbalancer.conf
+          sudo chown postgres:postgres /etc/pgbalancer/pgbalancer.conf
+          ```
+          
+          **Step 3: Basic Configuration**
+          
+          Edit `/etc/pgbalancer/pgbalancer.conf`:
+          ```conf
+          # Basic connection settings
+          listen_addresses = '*'
+          port = 5432
+          socket_dir = '/tmp'
+          
+          # Backend PostgreSQL servers
+          backend_hostname0 = 'localhost'
+          backend_port0 = 5433
+          backend_weight0 = 1
+          backend_data_directory0 = '/var/lib/postgresql/data'
+          backend_flag0 = 'ALLOW_TO_FAILOVER'
+          
+          # Connection pooling
+          num_init_children = 32
+          max_pool = 4
+          child_life_time = 300
+          child_max_connections = 0
+          connection_cache = on
+          
+          # Load balancing
+          load_balance_mode = on
+          
+          # Health checking
+          health_check_period = 30
+          health_check_timeout = 20
+          health_check_user = 'postgres'
+          health_check_password = 'postgres'
+          health_check_database = 'postgres'
+          
+          # AI Load Balancing (NEW)
+          ai_load_balancing = on
+          ai_learning_rate = 0.01
+          ai_exploration_rate = 0.1
+          ai_health_weight = 0.4
+          ai_response_time_weight = 0.3
+          ai_load_weight = 0.3
+          
+          # REST API Server (NEW)
+          rest_api_enabled = on
+          rest_api_port = 8080
+          rest_api_jwt_secret = 'your-secret-key-here'
+          rest_api_jwt_expiry = 3600
+          
+          # MQTT Event Publishing (NEW)
+          mqtt_enabled = on
+          mqtt_broker = 'localhost'
+          mqtt_port = 1883
+          mqtt_client_id = 'pgbalancer'
+          mqtt_topic_prefix = 'pgbalancer'
+          ```
+          
+          ## Service Configuration
+          
+          **Step 1: Create Systemd Service (Linux)**
+          
+          Create `/etc/systemd/system/pgbalancer.service`:
+          ```ini
+          [Unit]
+          Description=pgbalancer - PostgreSQL Connection Pooler
+          After=postgresql.service
+          Requires=postgresql.service
+          
+          [Service]
+          Type=forking
+          User=postgres
+          Group=postgres
+          ExecStart=/usr/local/bin/pgbalancer -f /etc/pgbalancer/pgbalancer.conf -D
+          ExecReload=/bin/kill -HUP $MAINPID
+          ExecStop=/bin/kill -TERM $MAINPID
+          PIDFile=/var/run/pgbalancer/pgbalancer.pid
+          Restart=on-failure
+          RestartSec=5
+          
+          [Install]
+          WantedBy=multi-user.target
+          ```
+          
+          **Step 2: Enable and Start Service**
+          ```bash
+          sudo systemctl daemon-reload
+          sudo systemctl enable pgbalancer
+          sudo systemctl start pgbalancer
+          sudo systemctl status pgbalancer
+          ```
+          
+          **Step 3: Verify Installation**
+          ```bash
+          # Check pgbalancer status
+          bctl status
+          
+          # Check REST API
+          curl http://localhost:8080/api/v1/status
+          
+          # Check MQTT events (if mosquitto is installed)
+          mosquitto_sub -h localhost -t 'pgbalancer/#' -v
+          ```
+          
+          ## Troubleshooting Installation
+          
+          **Common Issues:**
+          
+          1. **Configure script not found**
+             ```bash
+             autoreconf -fi
+             ```
+          
+          2. **Missing PostgreSQL headers**
+             ```bash
+             # Ubuntu/Debian
+             sudo apt-get install libpq-dev
+             
+             # CentOS/RHEL
+             sudo dnf install postgresql-devel
+             ```
+          
+          3. **Permission denied errors**
+             ```bash
+             sudo chown -R postgres:postgres /etc/pgbalancer
+             sudo chmod 600 /etc/pgbalancer/pgbalancer.conf
+             ```
+          
+          4. **Port already in use**
+             ```bash
+             # Check what's using port 5432
+             sudo netstat -tlnp | grep 5432
+             
+             # Change pgbalancer port in configuration
+             port = 5433
+             ```
+          
+          5. **Backend connection failed**
+             ```bash
+             # Test PostgreSQL connection
+             psql -h localhost -p 5433 -U postgres
+             
+             # Check PostgreSQL is running
+             sudo systemctl status postgresql
+             ```
+          
+          **Log Files:**
+          - pgbalancer logs: `/var/log/pgbalancer/`
+          - System logs: `journalctl -u pgbalancer`
+          - PostgreSQL logs: `/var/log/postgresql/`
+          
+          ## Next Steps
+          
+          - [Quick Start Guide](quickstart.md) - Get running in 5 minutes
+          - [Configuration Guide](configuration.md) - Detailed configuration options
+          - [REST API Reference](rest-api.md) - HTTP API documentation
+          - [CLI Tool (bctl)](bctl.md) - Command-line interface
+          EOF
+          
+          # Create comprehensive quickstart guide
+          cat > docs/quickstart.md << 'EOF'
+          # Quick Start Guide
+          
+          Get pgbalancer running in 5 minutes with AI load balancing, REST API, and MQTT events.
+          
+          ## Prerequisites
+          
+          - PostgreSQL 13+ running
+          - pgbalancer installed (see [Installation Guide](installation.md))
+          - Basic understanding of PostgreSQL
+          
+          ## Step 1: Basic Configuration
+          
+          **Create minimal configuration:**
+          ```bash
+          sudo mkdir -p /etc/pgbalancer
+          sudo tee /etc/pgbalancer/pgbalancer.conf > /dev/null << 'EOF'
+          # Basic settings
+          listen_addresses = '*'
+          port = 5432
+          socket_dir = '/tmp'
+          
+          # Single backend (adjust hostname/port as needed)
+          backend_hostname0 = 'localhost'
+          backend_port0 = 5433
+          backend_weight0 = 1
+          backend_data_directory0 = '/var/lib/postgresql/data'
+          backend_flag0 = 'ALLOW_TO_FAILOVER'
+          
+          # Connection pooling
+          num_init_children = 32
+          max_pool = 4
+          child_life_time = 300
+          connection_cache = on
+          
+          # Load balancing
+          load_balance_mode = on
+          
+          # Health checking
+          health_check_period = 30
+          health_check_timeout = 20
+          health_check_user = 'postgres'
+          health_check_password = 'postgres'
+          health_check_database = 'postgres'
+          
+          # AI Load Balancing (NEW)
+          ai_load_balancing = on
+          ai_learning_rate = 0.01
+          ai_exploration_rate = 0.1
+          ai_health_weight = 0.4
+          ai_response_time_weight = 0.3
+          ai_load_weight = 0.3
+          
+          # REST API Server (NEW)
+          rest_api_enabled = on
+          rest_api_port = 8080
+          rest_api_jwt_secret = 'quickstart-secret-key'
+          rest_api_jwt_expiry = 3600
+          
+          # MQTT Event Publishing (NEW)
+          mqtt_enabled = on
+          mqtt_broker = 'localhost'
+          mqtt_port = 1883
+          mqtt_client_id = 'pgbalancer'
+          mqtt_topic_prefix = 'pgbalancer'
+          EOF
+          ```
+          
+          ## Step 2: Start pgbalancer
+          
+          **Start in foreground (for testing):**
+          ```bash
+          pgbalancer -f /etc/pgbalancer/pgbalancer.conf -n
+          ```
+          
+          **Start as daemon:**
+          ```bash
+          pgbalancer -f /etc/pgbalancer/pgbalancer.conf -D
+          ```
+          
+          ## Step 3: Verify Installation
+          
+          **Check pgbalancer status:**
+          ```bash
+          bctl status
+          ```
+          
+          Expected output:
+          ```
+          Server: pgbalancer
+          Status: running
+          Version: 1.0.0
+          Uptime: 30 seconds
+          Connections: 0
+          Nodes: 1
+          Processes: 32
+          ```
+          
+          **Test PostgreSQL connection through pgbalancer:**
+          ```bash
+          psql -h localhost -p 5432 -U postgres -d postgres
+          ```
+          
+          ## Step 4: Use REST API
+          
+          **Get server status:**
+          ```bash
+          curl http://localhost:8080/api/v1/status
+          ```
+          
+          Expected response:
+          ```json
+          {
+            "status": "running",
+            "uptime": 60,
+            "connections": 0,
+            "nodes": 1,
+            "healthy_nodes": 1,
+            "ai_enabled": true,
+            "rest_api_enabled": true,
+            "mqtt_enabled": true
+          }
+          ```
+          
+          **List backend nodes:**
+          ```bash
+          curl http://localhost:8080/api/v1/nodes
+          ```
+          
+          **Get AI load balancing statistics:**
+          ```bash
+          curl http://localhost:8080/api/v1/ai-stats
+          ```
+          
+          ## Step 5: Monitor with MQTT
+          
+          **Install Mosquitto client (optional):**
+          ```bash
+          # Ubuntu/Debian
+          sudo apt-get install mosquitto-clients
+          
+          # CentOS/RHEL
+          sudo dnf install mosquitto-clients
+          
+          # macOS
+          brew install mosquitto
+          ```
+          
+          **Subscribe to all events:**
+          ```bash
+          mosquitto_sub -h localhost -t 'pgbalancer/#' -v
+          ```
+          
+          **Subscribe to specific events:**
+          ```bash
+          # Node status changes
+          mosquitto_sub -h localhost -t 'pgbalancer/nodes/status' -v
+          
+          # Health check results
+          mosquitto_sub -h localhost -t 'pgbalancer/health' -v
+          
+          # AI load balancing decisions
+          mosquitto_sub -h localhost -t 'pgbalancer/ai/decisions' -v
+          ```
+          
+          ## Step 6: Test AI Load Balancing
+          
+          **Create test workload:**
+          ```bash
+          # Connect to PostgreSQL through pgbalancer
+          psql -h localhost -p 5432 -U postgres -d postgres
+          ```
+          
+          ```sql
+          -- Create test table
+          CREATE TABLE test_data (id SERIAL PRIMARY KEY, data TEXT);
+          
+          -- Insert test data
+          INSERT INTO test_data (data) 
+          SELECT 'test_data_' || generate_series(1, 1000);
+          
+          -- Run queries to generate load
+          SELECT COUNT(*) FROM test_data WHERE id % 2 = 0;
+          SELECT AVG(id) FROM test_data;
+          SELECT * FROM test_data WHERE id BETWEEN 100 AND 200;
+          ```
+          
+          **Monitor AI decisions:**
+          ```bash
+          # Check AI statistics
+          curl http://localhost:8080/api/v1/ai-stats | jq '.'
+          
+          # Watch MQTT events
+          mosquitto_sub -h localhost -t 'pgbalancer/ai/#' -v
+          ```
+          
+          ## Step 7: Advanced Configuration
+          
+          **Add multiple backends:**
+          ```conf
+          # Backend 0 - Primary
+          backend_hostname0 = 'pg-primary'
+          backend_port0 = 5432
+          backend_weight0 = 1
+          backend_data_directory0 = '/var/lib/postgresql/data'
+          backend_flag0 = 'ALLOW_TO_FAILOVER'
+          
+          # Backend 1 - Standby
+          backend_hostname1 = 'pg-standby'
+          backend_port1 = 5432
+          backend_weight1 = 1
+          backend_data_directory1 = '/var/lib/postgresql/data'
+          backend_flag1 = 'ALLOW_TO_FAILOVER'
+          ```
+          
+          **Enable JWT authentication:**
+          ```conf
+          # REST API with JWT
+          rest_api_enabled = on
+          rest_api_port = 8080
+          rest_api_jwt_secret = 'your-secure-secret-key'
+          rest_api_jwt_expiry = 3600
+          rest_api_jwt_enabled = on
+          ```
+          
+          **Configure MQTT with authentication:**
+          ```conf
+          # MQTT with authentication
+          mqtt_enabled = on
+          mqtt_broker = 'mqtt.example.com'
+          mqtt_port = 8883
+          mqtt_username = 'pgbalancer'
+          mqtt_password = 'secure-password'
+          mqtt_tls = on
+          mqtt_client_id = 'pgbalancer-prod'
+          mqtt_topic_prefix = 'pgbalancer/prod'
+          ```
+          
+          ## Step 8: Production Considerations
+          
+          **Security:**
+          - Change default passwords
+          - Use SSL/TLS for connections
+          - Enable JWT authentication
+          - Configure firewall rules
+          
+          **Performance:**
+          - Tune `num_init_children` based on load
+          - Adjust `max_pool` for connection reuse
+          - Configure appropriate `child_life_time`
+          - Monitor AI learning parameters
+          
+          **Monitoring:**
+          - Set up Prometheus metrics
+          - Configure Grafana dashboards
+          - Enable MQTT event monitoring
+          - Set up alerting rules
+          
+          **High Availability:**
+          - Configure watchdog
+          - Set up multiple pgbalancer instances
+          - Enable automatic failover
+          - Configure online recovery
+          
+          ## Next Steps
+          
+          - [Configuration Guide](configuration.md) - Detailed configuration options
+          - [AI Load Balancing](ai-load-balancing.md) - Machine learning algorithms
+          - [REST API Reference](rest-api.md) - Complete HTTP API documentation
+          - [MQTT Event Streaming](mqtt-events.md) - Real-time event publishing
+          - [CLI Tool (bctl)](bctl.md) - Professional command-line interface
+          - [Monitoring Integration](monitoring.md) - Prometheus & Grafana setup
+          EOF
+          
+          # Create comprehensive configuration guide
+          cat > docs/configuration.md << 'EOF'
+          # Configuration Guide
+          
+          Complete guide to configuring pgbalancer with all parameters explained in detail.
+          
+          ## Configuration File Format
+          
+          pgbalancer uses standard `.conf` file format compatible with pgpool-II. The configuration file is typically located at `/etc/pgbalancer/pgbalancer.conf`.
+          
+          **File Structure:**
+          ```conf
+          # Comments start with #
+          # Parameters use key = value format
+          # Values can be quoted or unquoted
+          # Boolean values: on, off, true, false, yes, no, 1, 0
+          
+          # Basic connection settings
+          listen_addresses = '*'
+          port = 5432
+          
+          # Backend servers
+          backend_hostname0 = 'localhost'
+          backend_port0 = 5433
+          ```
+          
+          ## Basic Connection Settings
+          
+          ### listen_addresses
+          **Type:** String  
+          **Default:** 'localhost'  
+          **Description:** IP addresses to listen on
+          
+          ```conf
+          # Listen on all interfaces
+          listen_addresses = '*'
+          
+          # Listen on specific interfaces
+          listen_addresses = '127.0.0.1,192.168.1.100'
+          
+          # Listen on localhost only
+          listen_addresses = 'localhost'
+          ```
+          
+          ### port
+          **Type:** Integer  
+          **Default:** 5432  
+          **Description:** Port number to listen on
+          
+          ```conf
+          # Default PostgreSQL port
+          port = 5432
+          
+          # Custom port
+          port = 5433
+          ```
+          
+          ### socket_dir
+          **Type:** String  
+          **Default:** '/tmp'  
+          **Description:** Directory for Unix domain sockets
+          
+          ```conf
+          socket_dir = '/tmp'
+          socket_dir = '/var/run/pgbalancer'
+          ```
+          
+          ## Backend Server Configuration
+          
+          ### backend_hostnameN
+          **Type:** String  
+          **Description:** Hostname or IP address of backend server N
+          
+          ```conf
+          # Backend 0
+          backend_hostname0 = 'pg-primary'
+          backend_port0 = 5432
+          backend_weight0 = 1
+          backend_data_directory0 = '/var/lib/postgresql/data'
+          backend_flag0 = 'ALLOW_TO_FAILOVER'
+          
+          # Backend 1
+          backend_hostname1 = 'pg-standby'
+          backend_port1 = 5432
+          backend_weight1 = 1
+          backend_data_directory1 = '/var/lib/postgresql/data'
+          backend_flag1 = 'ALLOW_TO_FAILOVER'
+          
+          # Backend 2
+          backend_hostname2 = 'pg-replica'
+          backend_port2 = 5432
+          backend_weight2 = 1
+          backend_data_directory2 = '/var/lib/postgresql/data'
+          backend_flag2 = 'ALLOW_TO_FAILOVER'
+          ```
+          
+          ### backend_portN
+          **Type:** Integer  
+          **Description:** Port number of backend server N
+          
+          ### backend_weightN
+          **Type:** Integer  
+          **Default:** 1  
+          **Description:** Weight for load balancing (higher = more connections)
+          
+          ### backend_data_directoryN
+          **Type:** String  
+          **Description:** Data directory path of backend server N
+          
+          ### backend_flagN
+          **Type:** String  
+          **Description:** Flags for backend server N
+          
+          **Available flags:**
+          - `ALLOW_TO_FAILOVER` - Allow automatic failover
+          - `DISALLOW_TO_FAILOVER` - Disable automatic failover
+          - `BACKEND_TYPE_PRIMARY` - Mark as primary server
+          - `BACKEND_TYPE_STANDBY` - Mark as standby server
+          
+          ## Connection Pooling
+          
+          ### num_init_children
+          **Type:** Integer  
+          **Default:** 32  
+          **Description:** Number of child processes to start
+          
+          ```conf
+          # Light load
+          num_init_children = 16
+          
+          # Medium load
+          num_init_children = 32
+          
+          # Heavy load
+          num_init_children = 64
+          ```
+          
+          ### max_pool
+          **Type:** Integer  
+          **Default:** 4  
+          **Description:** Maximum number of connections per child process
+          
+          ```conf
+          # Conservative
+          max_pool = 2
+          
+          # Default
+          max_pool = 4
+          
+          # Aggressive
+          max_pool = 8
+          ```
+          
+          ### child_life_time
+          **Type:** Integer  
+          **Default:** 300  
+          **Description:** Lifetime of child process in seconds
+          
+          ```conf
+          # Short-lived processes
+          child_life_time = 300
+          
+          # Long-lived processes
+          child_life_time = 3600
+          ```
+          
+          ### child_max_connections
+          **Type:** Integer  
+          **Default:** 0  
+          **Description:** Maximum connections per child (0 = unlimited)
+          
+          ### connection_cache
+          **Type:** Boolean  
+          **Default:** on  
+          **Description:** Enable connection caching
+          
+          ```conf
+          connection_cache = on
+          connection_cache = off
+          ```
+          
+          ## Load Balancing
+          
+          ### load_balance_mode
+          **Type:** Boolean  
+          **Default:** off  
+          **Description:** Enable load balancing
+          
+          ```conf
+          load_balance_mode = on
+          load_balance_mode = off
+          ```
+          
+          ### ignore_leading_white_space
+          **Type:** Boolean  
+          **Default:** on  
+          **Description:** Ignore leading whitespace in queries
+          
+          ### statement_level_load_balance
+          **Type:** Boolean  
+          **Default:** off  
+          **Description:** Enable statement-level load balancing
+          
+          ## Health Checking
+          
+          ### health_check_period
+          **Type:** Integer  
+          **Default:** 0  
+          **Description:** Health check interval in seconds (0 = disabled)
+          
+          ```conf
+          # Check every 30 seconds
+          health_check_period = 30
+          
+          # Check every 5 minutes
+          health_check_period = 300
+          
+          # Disable health checks
+          health_check_period = 0
+          ```
+          
+          ### health_check_timeout
+          **Type:** Integer  
+          **Default:** 20  
+          **Description:** Health check timeout in seconds
+          
+          ### health_check_user
+          **Type:** String  
+          **Description:** Username for health checks
+          
+          ```conf
+          health_check_user = 'postgres'
+          health_check_user = 'pgbalancer'
+          ```
+          
+          ### health_check_password
+          **Type:** String  
+          **Description:** Password for health checks
+          
+          ```conf
+          health_check_password = 'postgres'
+          health_check_password = 'secure-password'
+          ```
+          
+          ### health_check_database
+          **Type:** String  
+          **Default:** 'postgres'  
+          **Description:** Database name for health checks
+          
+          ### health_check_max_retries
+          **Type:** Integer  
+          **Default:** 0  
+          **Description:** Maximum retries before marking backend as down
+          
+          ## Failover and Recovery
+          
+          ### failover_on_backend_error
+          **Type:** Boolean  
+          **Default:** off  
+          **Description:** Enable automatic failover on backend errors
+          
+          ```conf
+          failover_on_backend_error = on
+          failover_on_backend_error = off
+          ```
+          
+          ### detach_false_primary
+          **Type:** Boolean  
+          **Default:** off  
+          **Description:** Detach false primary servers
+          
+          ### recovery_user
+          **Type:** String  
+          **Description:** Username for online recovery
+          
+          ### recovery_password
+          **Type:** String  
+          **Description:** Password for online recovery
+          
+          ### recovery_1st_stage_command
+          **Type:** String  
+          **Description:** First stage recovery command
+          
+          ### recovery_2nd_stage_command
+          **Type:** String  
+          **Description:** Second stage recovery command
+          
+          ## AI Load Balancing (NEW)
+          
+          ### ai_load_balancing
+          **Type:** Boolean  
+          **Default:** off  
+          **Description:** Enable AI-powered load balancing
+          
+          ```conf
+          ai_load_balancing = on
+          ai_load_balancing = off
+          ```
+          
+          ### ai_learning_rate
+          **Type:** Float  
+          **Default:** 0.01  
+          **Range:** 0.001 - 0.1  
+          **Description:** Learning rate for AI algorithm
+          
+          ```conf
+          # Conservative learning
+          ai_learning_rate = 0.001
+          
+          # Default learning
+          ai_learning_rate = 0.01
+          
+          # Aggressive learning
+          ai_learning_rate = 0.1
+          ```
+          
+          ### ai_exploration_rate
+          **Type:** Float  
+          **Default:** 0.1  
+          **Range:** 0.01 - 0.5  
+          **Description:** Exploration rate for AI algorithm
+          
+          ```conf
+          # Low exploration
+          ai_exploration_rate = 0.01
+          
+          # Default exploration
+          ai_exploration_rate = 0.1
+          
+          # High exploration
+          ai_exploration_rate = 0.5
+          ```
+          
+          ### ai_health_weight
+          **Type:** Float  
+          **Default:** 0.4  
+          **Range:** 0.0 - 1.0  
+          **Description:** Weight for health score in AI decisions
+          
+          ### ai_response_time_weight
+          **Type:** Float  
+          **Default:** 0.3  
+          **Range:** 0.0 - 1.0  
+          **Description:** Weight for response time in AI decisions
+          
+          ### ai_load_weight
+          **Type:** Float  
+          **Default:** 0.3  
+          **Range:** 0.0 - 1.0  
+          **Description:** Weight for current load in AI decisions
+          
+          **Note:** The three weight parameters should sum to 1.0:
+          ```conf
+          ai_health_weight = 0.4
+          ai_response_time_weight = 0.3
+          ai_load_weight = 0.3
+          # Total: 1.0
+          ```
+          
+          ## REST API Server (NEW)
+          
+          ### rest_api_enabled
+          **Type:** Boolean  
+          **Default:** off  
+          **Description:** Enable REST API server
+          
+          ```conf
+          rest_api_enabled = on
+          rest_api_enabled = off
+          ```
+          
+          ### rest_api_port
+          **Type:** Integer  
+          **Default:** 8080  
+          **Description:** Port for REST API server
+          
+          ```conf
+          rest_api_port = 8080
+          rest_api_port = 9090
+          ```
+          
+          ### rest_api_jwt_secret
+          **Type:** String  
+          **Description:** Secret key for JWT token generation
+          
+          ```conf
+          rest_api_jwt_secret = 'your-secure-secret-key-here'
+          rest_api_jwt_secret = 'production-secret-key-change-this'
+          ```
+          
+          ### rest_api_jwt_expiry
+          **Type:** Integer  
+          **Default:** 3600  
+          **Description:** JWT token expiry time in seconds
+          
+          ```conf
+          # 1 hour
+          rest_api_jwt_expiry = 3600
+          
+          # 24 hours
+          rest_api_jwt_expiry = 86400
+          
+          # 1 week
+          rest_api_jwt_expiry = 604800
+          ```
+          
+          ### rest_api_jwt_enabled
+          **Type:** Boolean  
+          **Default:** off  
+          **Description:** Enable JWT authentication for REST API
+          
+          ```conf
+          rest_api_jwt_enabled = on
+          rest_api_jwt_enabled = off
+          ```
+          
+          ## MQTT Event Publishing (NEW)
+          
+          ### mqtt_enabled
+          **Type:** Boolean  
+          **Default:** off  
+          **Description:** Enable MQTT event publishing
+          
+          ```conf
+          mqtt_enabled = on
+          mqtt_enabled = off
+          ```
+          
+          ### mqtt_broker
+          **Type:** String  
+          **Default:** 'localhost'  
+          **Description:** MQTT broker hostname or IP address
+          
+          ```conf
+          mqtt_broker = 'localhost'
+          mqtt_broker = 'mqtt.example.com'
+          mqtt_broker = '192.168.1.100'
+          ```
+          
+          ### mqtt_port
+          **Type:** Integer  
+          **Default:** 1883  
+          **Description:** MQTT broker port
+          
+          ```conf
+          # Standard MQTT
+          mqtt_port = 1883
+          
+          # MQTT over TLS
+          mqtt_port = 8883
+          
+          # Custom port
+          mqtt_port = 1884
+          ```
+          
+          ### mqtt_client_id
+          **Type:** String  
+          **Default:** 'pgbalancer'  
+          **Description:** MQTT client identifier
+          
+          ```conf
+          mqtt_client_id = 'pgbalancer'
+          mqtt_client_id = 'pgbalancer-prod'
+          mqtt_client_id = 'pgbalancer-cluster-1'
+          ```
+          
+          ### mqtt_topic_prefix
+          **Type:** String  
+          **Default:** 'pgbalancer'  
+          **Description:** Prefix for all MQTT topics
+          
+          ```conf
+          mqtt_topic_prefix = 'pgbalancer'
+          mqtt_topic_prefix = 'pgbalancer/prod'
+          mqtt_topic_prefix = 'pgbalancer/cluster1'
+          ```
+          
+          ### mqtt_username
+          **Type:** String  
+          **Description:** MQTT broker username
+          
+          ```conf
+          mqtt_username = 'pgbalancer'
+          mqtt_username = 'mqtt-user'
+          ```
+          
+          ### mqtt_password
+          **Type:** String  
+          **Description:** MQTT broker password
+          
+          ```conf
+          mqtt_password = 'secure-password'
+          mqtt_password = 'mqtt-password'
+          ```
+          
+          ### mqtt_tls
+          **Type:** Boolean  
+          **Default:** off  
+          **Description:** Enable TLS for MQTT connections
+          
+          ```conf
+          mqtt_tls = on
+          mqtt_tls = off
+          ```
+          
+          ### mqtt_qos
+          **Type:** Integer  
+          **Default:** 0  
+          **Range:** 0 - 2  
+          **Description:** MQTT Quality of Service level
+          
+          ```conf
+          # At most once
+          mqtt_qos = 0
+          
+          # At least once
+          mqtt_qos = 1
+          
+          # Exactly once
+          mqtt_qos = 2
+          ```
+          
+          ## Watchdog Configuration
+          
+          ### use_watchdog
+          **Type:** Boolean  
+          **Default:** off  
+          **Description:** Enable watchdog for high availability
+          
+          ```conf
+          use_watchdog = on
+          use_watchdog = off
+          ```
+          
+          ### wd_hostname
+          **Type:** String  
+          **Description:** Hostname for watchdog
+          
+          ### wd_port
+          **Type:** Integer  
+          **Default:** 9000  
+          **Description:** Port for watchdog
+          
+          ### wd_authkey
+          **Type:** String  
+          **Description:** Authentication key for watchdog
+          
+          ## SSL/TLS Configuration
+          
+          ### ssl
+          **Type:** Boolean  
+          **Default:** off  
+          **Description:** Enable SSL connections
+          
+          ### ssl_cert
+          **Type:** String  
+          **Description:** SSL certificate file
+          
+          ### ssl_key
+          **Type:** String  
+          **Description:** SSL private key file
+          
+          ### ssl_ca_cert
+          **Type:** String  
+          **Description:** SSL CA certificate file
+          
+          ## Authentication Configuration
+          
+          ### authentication_timeout
+          **Type:** Integer  
+          **Default:** 60  
+          **Description:** Authentication timeout in seconds
+          
+          ### enable_pool_hba
+          **Type:** Boolean  
+          **Default:** off  
+          **Description:** Enable pool_hba.conf for authentication
+          
+          ### pool_passwd
+          **Type:** String  
+          **Description:** Password file for authentication
+          
+          ## Performance Tuning
+          
+          ### log_connections
+          **Type:** Boolean  
+          **Default:** off  
+          **Description:** Log connection attempts
+          
+          ### log_hostname
+          **Type:** Boolean  
+          **Default:** off  
+          **Description:** Log hostnames instead of IP addresses
+          
+          ### log_statement
+          **Type:** Boolean  
+          **Default:** off  
+          **Description:** Log SQL statements
+          
+          ### log_per_node_statement
+          **Type:** Boolean  
+          **Default:** off  
+          **Description:** Log statements per node
+          
+          ### log_standby_delay
+          **Type:** String  
+          **Description:** Log standby delay information
+          
+          ## Configuration Examples
+          
+          ### Basic Single Backend
+          ```conf
+          listen_addresses = '*'
+          port = 5432
+          
+          backend_hostname0 = 'localhost'
+          backend_port0 = 5433
+          backend_weight0 = 1
+          backend_data_directory0 = '/var/lib/postgresql/data'
+          backend_flag0 = 'ALLOW_TO_FAILOVER'
+          
+          num_init_children = 32
+          max_pool = 4
+          child_life_time = 300
+          connection_cache = on
+          
+          load_balance_mode = on
+          
+          health_check_period = 30
+          health_check_timeout = 20
+          health_check_user = 'postgres'
+          health_check_password = 'postgres'
+          health_check_database = 'postgres'
+          ```
+          
+          ### High Availability with AI
+          ```conf
+          listen_addresses = '*'
+          port = 5432
+          
+          # Primary
+          backend_hostname0 = 'pg-primary'
+          backend_port0 = 5432
+          backend_weight0 = 1
+          backend_data_directory0 = '/var/lib/postgresql/data'
+          backend_flag0 = 'ALLOW_TO_FAILOVER'
+          
+          # Standby 1
+          backend_hostname1 = 'pg-standby1'
+          backend_port1 = 5432
+          backend_weight1 = 1
+          backend_data_directory1 = '/var/lib/postgresql/data'
+          backend_flag1 = 'ALLOW_TO_FAILOVER'
+          
+          # Standby 2
+          backend_hostname2 = 'pg-standby2'
+          backend_port2 = 5432
+          backend_weight2 = 1
+          backend_data_directory2 = '/var/lib/postgresql/data'
+          backend_flag2 = 'ALLOW_TO_FAILOVER'
+          
+          num_init_children = 64
+          max_pool = 8
+          child_life_time = 600
+          connection_cache = on
+          
+          load_balance_mode = on
+          failover_on_backend_error = on
+          
+          health_check_period = 30
+          health_check_timeout = 20
+          health_check_user = 'postgres'
+          health_check_password = 'postgres'
+          health_check_database = 'postgres'
+          health_check_max_retries = 3
+          
+          # AI Load Balancing
+          ai_load_balancing = on
+          ai_learning_rate = 0.01
+          ai_exploration_rate = 0.1
+          ai_health_weight = 0.4
+          ai_response_time_weight = 0.3
+          ai_load_weight = 0.3
+          
+          # REST API
+          rest_api_enabled = on
+          rest_api_port = 8080
+          rest_api_jwt_secret = 'production-secret-key'
+          rest_api_jwt_expiry = 3600
+          rest_api_jwt_enabled = on
+          
+          # MQTT Events
+          mqtt_enabled = on
+          mqtt_broker = 'mqtt.example.com'
+          mqtt_port = 8883
+          mqtt_username = 'pgbalancer'
+          mqtt_password = 'secure-password'
+          mqtt_tls = on
+          mqtt_client_id = 'pgbalancer-prod'
+          mqtt_topic_prefix = 'pgbalancer/prod'
+          mqtt_qos = 1
+          
+          # Watchdog
+          use_watchdog = on
+          wd_hostname = 'pgbalancer-node1'
+          wd_port = 9000
+          wd_authkey = 'watchdog-secret-key'
+          
+          # SSL
+          ssl = on
+          ssl_cert = '/etc/ssl/certs/pgbalancer.crt'
+          ssl_key = '/etc/ssl/private/pgbalancer.key'
+          ssl_ca_cert = '/etc/ssl/certs/ca.crt'
+          
+          # Logging
+          log_connections = on
+          log_hostname = on
+          log_statement = on
+          ```
+          
+          ## Configuration Validation
+          
+          **Test configuration:**
+          ```bash
+          pgbalancer -f /etc/pgbalancer/pgbalancer.conf -t
+          ```
+          
+          **Reload configuration:**
+          ```bash
+          bctl reload
+          # or
+          curl -X POST http://localhost:8080/api/v1/control/reload
+          ```
+          
+          ## Next Steps
+          
+          - [AI Load Balancing](ai-load-balancing.md) - Machine learning algorithms
+          - [REST API Reference](rest-api.md) - Complete HTTP API documentation
+          - [MQTT Event Streaming](mqtt-events.md) - Real-time event publishing
+          - [CLI Tool (bctl)](bctl.md) - Professional command-line interface
+          - [Performance Tuning](performance.md) - Optimization guidelines
+          EOF
+          
+          # Create placeholder files for remaining documentation
+          for page in ai-load-balancing rest-api mqtt-events bctl connection-pooling load-balancing \
+                      failover health-monitoring performance watchdog ssl authentication \
+                      monitoring parameters api-endpoints cli-commands error-codes examples \
+                      release-notes migration faq license; do
             cat > docs/${page}.md << EOFPAGE
           # ${page^}
           
-          Documentation coming soon.
+          Comprehensive documentation for ${page} is being developed.
           
-          For now, see the [README.md](https://github.com/pgelephant/pgbalancer/blob/main/README.md) and [SGML documentation](https://github.com/pgelephant/pgbalancer/tree/main/doc).
+          For now, see the [README.md](https://github.com/pgelephant/pgbalancer/blob/main/README.md) for basic information.
+          
+          ## Coming Soon
+          
+          This section will include:
+          - Detailed explanations
+          - Configuration examples
+          - Best practices
+          - Troubleshooting guides
+          - Performance tuning tips
+          
           EOFPAGE
           done
 
       - name: Build documentation
-        run: mkdocs build --strict --site-dir site
+        run: |
+          mkdocs build --strict
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
-          path: 'site'
+          path: ./site
 
+  deploy:
+    name: Deploy to GitHub Pages
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
