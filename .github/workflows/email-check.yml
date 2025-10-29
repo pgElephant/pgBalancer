@@ -9,6 +9,15 @@ jobs:
   validate-email:
     runs-on: ubuntu-latest
     steps:
+      - name: Verify user is pgelephant2025
+        run: |
+          if [ "${{ github.actor }}" != "pgelephant2025" ]; then
+            echo "❌ Unauthorized push: Only pgelephant2025 can push to this branch"
+            echo "Current user: ${{ github.actor }}"
+            exit 1
+          fi
+          echo "✅ Authorized user: ${{ github.actor }}"
+      
       - name: Check commit author email
         run: |
           ALLOWED_EMAIL="admin@pgelephant.com"

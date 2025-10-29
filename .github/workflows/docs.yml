@@ -2,14 +2,6 @@ name: Deploy Documentation
 
 on:
   workflow_dispatch:
-  # Automatic triggers disabled - run manually only
-  # push:
-  #   branches:
-  #     - main
-  #   paths:
-  #     - 'docs/**'
-  #     - 'mkdocs.yml'
-  #     - '.github/workflows/docs.yml'
 
 permissions:
   contents: write
@@ -22,9 +14,23 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  authorize:
+    name: Check Authorization
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify user is pgelephant2025
+        run: |
+          if [ "${{ github.actor }}" != "pgelephant2025" ]; then
+            echo "❌ Unauthorized: Only pgelephant2025 can run this workflow"
+            echo "Current user: ${{ github.actor }}"
+            exit 1
+          fi
+          echo "✅ Authorized: ${{ github.actor }}"
+
   build:
     name: Build MkDocs Documentation
     runs-on: ubuntu-latest
+    needs: authorize
     steps:
       - name: Checkout
         uses: actions/checkout@v4
