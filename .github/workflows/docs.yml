@@ -1616,28 +1616,337 @@ jobs:
           - [Performance Tuning](performance.md) - Optimization guidelines
           EOF
           
-          # Create placeholder files for remaining documentation
-          for page in ai-load-balancing rest-api mqtt-events bctl connection-pooling load-balancing \
+          # Create Connection Pooling documentation
+          cat > docs/connection-pooling.md << 'POOLEOF'
+          # Connection Pooling
+          
+          **pgbalancer** maintains established connections to PostgreSQL servers and reuses them whenever a new connection with the same properties (user name, database, protocol version) comes in. This reduces connection overhead and improves system throughput.
+          
+          ## Overview
+          
+          Connection pooling is one of the most important performance features of pgbalancer. Instead of creating a new connection for every client request, pgbalancer maintains a cache of connections and reuses them.
+          
+          ## Key Configuration Parameters
+          
+          ### connection_cache
+          
+          **Type:** boolean  
+          **Default:** on  
+          **Reload:** Restart required
+          
+          Caches connections to backends when set to on.
+          
+          **Note:** Connections to `template0`, `template1`, `postgres`, and `regression` databases are not cached even if connection_cache is on.
+          
+          ```conf
+          connection_cache = on
+          ```
+          
+          ### max_pool
+          
+          **Type:** integer  
+          **Default:** 4  
+          **Reload:** Restart required
+          
+          The maximum number of cached connections in each pgbalancer child process. pgbalancer reuses the cached connection if an incoming connection is connecting to the same database with the same user name and the same runtime parameters.
+          
+          If the number of cached connections exceeds `max_pool`, the oldest connection will be discarded.
+          
+          **Important:** The total number of connections from pgbalancer to backends may reach `num_init_children * max_pool`.
+          
+          ```conf
+          max_pool = 4
+          ```
+          
+          ### num_init_children
+          
+          **Type:** integer  
+          **Default:** 32  
+          **Reload:** Restart required
+          
+          The number of child processes pgbalancer will pre-fork at startup. Each child process can handle one client connection.
+          
+          ```conf
+          num_init_children = 32
+          ```
+          
+          ### child_life_time
+          
+          **Type:** integer (seconds)  
+          **Default:** 300 (5 minutes)  
+          **Reload:** Restart required
+          
+          Specifies the time in seconds to terminate a pgbalancer child process if it remains idle. Setting to 0 disables the feature.
+          
+          **Note:** This helps prevent memory leaks but disables `serialize_accept` when enabled.
+          
+          ```conf
+          child_life_time = 300
+          ```
+          
+          ### child_max_connections
+          
+          **Type:** integer  
+          **Default:** 0 (disabled)  
+          **Reload:** Restart required
+          
+          Specifies the lifetime of a child process in terms of the number of client connections it can receive. pgbalancer will terminate the child process after it has served this many connections.
+          
+          ```conf
+          child_max_connections = 1000
+          ```
+          
+          ### connection_life_time
+          
+          **Type:** integer (seconds)  
+          **Default:** 0 (disabled)  
+          **Reload:** Restart required
+          
+          Specifies the time in seconds to terminate cached connections to PostgreSQL backends. This serves as the cached connection expiration time.
+          
+          ```conf
+          connection_life_time = 600
+          ```
+          
+          ### client_idle_limit
+          
+          **Type:** integer (seconds)  
+          **Default:** 0 (disabled)  
+          **Reload:** Reload
+          
+          Specifies the time in seconds to disconnect a client if it remains idle since the last query. This is useful for preventing pgbalancer children from being occupied by lazy clients or broken TCP/IP connections.
+          
+          ```conf
+          client_idle_limit = 300
+          ```
+          
+          ### reset_query_list
+          
+          **Type:** string  
+          **Default:** `'ABORT; DISCARD ALL'`  
+          **Reload:** Reload
+          
+          Specifies the SQL commands to be sent to reset the backend connection when exiting the user session. Multiple commands can be specified by delimiting each by `;`.
+          
+          **Recommended settings by PostgreSQL version:**
+          
+          | PostgreSQL Version | Setting |
+          |-------------------|---------|
+          | 7.1 or earlier | `'ABORT'` |
+          | 7.2 to 8.2 | `'ABORT; RESET ALL; SET SESSION AUTHORIZATION DEFAULT'` |
+          | 8.3 or later | `'ABORT; DISCARD ALL'` |
+          
+          ```conf
+          reset_query_list = 'ABORT; DISCARD ALL'
+          ```
+          
+          ## Connection Pool Architecture
+          
+          ```
+          [Clients] → [Child Processes] → [Connection Pool] → [PostgreSQL Backends]
+             ↓              ↓                    ↓                      ↓
+          Client 1    Child Process 1      Pool Cache 1-4        PostgreSQL 1-N
+          Client 2    Child Process 2      Pool Cache 1-4        
+          ...         ...                  ...
+          Client N    Child Process N      Pool Cache 1-4
+          ```
+          
+          ## Best Practices
+          
+          ### 1. Calculate Total Connections
+          
+          Total backend connections = `num_init_children * max_pool * number_of_backends`
+          
+          Ensure PostgreSQL's `max_connections` is higher than this value.
+          
+          ### 2. Tune for Your Workload
+          
+          **For many short connections:**
+          ```conf
+          num_init_children = 64
+          max_pool = 2
+          child_life_time = 300
+          ```
+          
+          **For fewer long connections:**
+          ```conf
+          num_init_children = 16
+          max_pool = 8
+          client_idle_limit = 600
+          ```
+          
+          ### 3. Monitor Pool Usage
+          
+          Use REST API or `bctl` to check pool statistics:
+          
+          ```bash
+          # Check pool status
+          curl http://localhost:8080/api/v1/pools
+          
+          # Or via CLI
+          bctl show pools
+          ```
+          
+          ### 4. Handle Connection Leaks
+          
+          Set `client_idle_limit` to automatically disconnect idle clients:
+          
+          ```conf
+          client_idle_limit = 300  # 5 minutes
+          ```
+          
+          ## Performance Tuning
+          
+          ### Thundering Herd Problem
+          
+          For large `num_init_children` values, enable serialization:
+          
+          ```conf
+          num_init_children = 128
+          serialize_accept = on
+          child_life_time = 0  # Required for serialize_accept
+          ```
+          
+          ### Connection Queue Management
+          
+          Adjust the listen backlog:
+          
+          ```conf
+          listen_backlog_multiplier = 2
+          ```
+          
+          Queue length = `listen_backlog_multiplier * num_init_children`
+          
+          ### Reserved Connections
+          
+          Reject overflowed connections (like PostgreSQL):
+          
+          ```conf
+          reserved_connections = 5
+          ```
+          
+          ## Troubleshooting
+          
+          ### Problem: "FATAL: no free child processes"
+          
+          **Solution:** Increase `num_init_children` or reduce connection load.
+          
+          ### Problem: "FATAL: sorry, too many clients already"
+          
+          **Solution:** Check PostgreSQL `max_connections` setting:
+          
+          ```sql
+          SHOW max_connections;
+          ```
+          
+          Increase it to at least `num_init_children * max_pool * number_of_backends + 10`.
+          
+          ### Problem: Connection pool not being reused
+          
+          **Solution:** Ensure connections have identical properties:
+          - Same username
+          - Same database
+          - Same runtime parameters
+          
+          ## Monitoring
+          
+          ### View Pool Statistics
+          
+          ```bash
+          # REST API
+          curl http://localhost:8080/api/v1/pools
+          
+          # CLI
+          bctl show pools
+          
+          # SQL interface
+          SHOW POOL_POOLS;
+          ```
+          
+          ### Key Metrics
+          
+          - **Active connections:** Current client connections
+          - **Cached connections:** Pooled backend connections
+          - **Cache hit ratio:** Efficiency of pool reuse
+          - **Wait queue length:** Clients waiting for available child process
+          
+          ## Example Configurations
+          
+          ### Small Deployment (< 100 clients)
+          
+          ```conf
+          num_init_children = 32
+          max_pool = 4
+          child_life_time = 300
+          connection_cache = on
+          client_idle_limit = 0
+          ```
+          
+          ### Medium Deployment (100-500 clients)
+          
+          ```conf
+          num_init_children = 64
+          max_pool = 4
+          child_life_time = 300
+          connection_cache = on
+          client_idle_limit = 300
+          serialize_accept = on
+          ```
+          
+          ### Large Deployment (500+ clients)
+          
+          ```conf
+          num_init_children = 128
+          max_pool = 4
+          child_life_time = 0
+          connection_cache = on
+          client_idle_limit = 180
+          serialize_accept = on
+          listen_backlog_multiplier = 3
+          reserved_connections = 10
+          ```
+          
+          ## Related Topics
+          
+          - [Performance Tuning](performance.md) - Optimization strategies
+          - [Load Balancing](load-balancing.md) - Query distribution
+          - [Health Monitoring](health-monitoring.md) - Backend health checks
+          - [Configuration Parameters](parameters.md) - Full parameter reference
+          POOLEOF
+          
+          # Create placeholder files for remaining documentation pages
+          for page in ai-load-balancing rest-api mqtt-events bctl load-balancing \
                       failover health-monitoring performance watchdog ssl authentication \
                       monitoring parameters api-endpoints cli-commands error-codes examples \
                       release-notes migration faq license; do
-            cat > docs/${page}.md << EOFPAGE
+            cat > docs/${page}.md << DOCEOFPAGE
           # ${page^}
           
-          Comprehensive documentation for ${page} is being developed.
+          Comprehensive documentation for **${page}** is being developed based on pgpool-II documentation with pgbalancer-specific features (AI Load Balancing, REST API, MQTT Event Streaming, and bctl CLI).
           
-          For now, see the [README.md](https://github.com/pgelephant/pgbalancer/blob/main/README.md) for basic information.
+          For now, see the [README.md](https://github.com/pgelephant/pgbalancer/blob/main/README.md) for feature overview.
           
-          ## Coming Soon
+          ## Key Features
           
-          This section will include:
-          - Detailed explanations
-          - Configuration examples
-          - Best practices
-          - Troubleshooting guides
-          - Performance tuning tips
+          pgbalancer extends traditional connection pooling with modern capabilities:
           
-          EOFPAGE
+          - **AI-Powered Load Balancing:** Machine learning algorithms for intelligent query routing
+          - **REST API Management:** 17 HTTP/JSON endpoints for cluster control
+          - **MQTT Event Streaming:** Real-time event publishing for monitoring and automation
+          - **Professional CLI (bctl):** Modern command-line interface for operations
+          
+          ## Quick Links
+          
+          - [Connection Pooling](connection-pooling.md) - Complete pooling documentation ✓
+          - [Quick Start Guide](quickstart.md) - Get running in 5 minutes
+          - [Configuration Guide](configuration.md) - Detailed setup instructions
+          - [Installation Guide](installation.md) - Platform-specific installation
+          
+          ## Documentation Status
+          
+          This page is under development. The pgbalancer project is actively documenting all features comprehensively. See [Connection Pooling](connection-pooling.md) for an example of our complete documentation.
+          
+          DOCEOFPAGE
           done
 
       - name: Build documentation
