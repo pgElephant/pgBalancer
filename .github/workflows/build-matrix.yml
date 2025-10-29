@@ -240,527 +240,6 @@ jobs:
               echo "✓ Found libpq-fe.h in ${PG_PKGINCLUDE}"
             else
               echo "⚠ Warning: libpq-fe.h not found, searching..."
-              find /usr -name "libpq-fe.h" 2>/dev/null
-            fi
-          else
-            export PG_CONFIG=/usr/lib/postgresql/${{ matrix.pg_version }}/bin/pg_config
-            # Set PostgreSQL paths for Ubuntu
-            PG_INCLUDE=$($PG_CONFIG --includedir)
-            PG_LIBDIR=$($PG_CONFIG --libdir)
-            export CPPFLAGS="-I${PG_INCLUDE}"
-            export LDFLAGS="-L${PG_LIBDIR}"
-          fi
-          
-          echo "PostgreSQL include directory: $PG_INCLUDE"
-          echo "PostgreSQL library directory: $PG_LIBDIR"
-          
-          # Check if configure exists, if not run autoreconf
-          if [ ! -f ./configure ]; then
-            echo "Running autoreconf to generate configure script..."
-            autoreconf -fi
-          fi
-          
-          # Verify configure exists
-          if [ ! -f ./configure ]; then
-            echo "ERROR: configure script not found after autoreconf"
-            ls -la
-            exit 1
-          fi
-          
-          # Configure with PostgreSQL paths and build
-          # Use --with-pgsql-includedir and --with-pgsql-libdir to avoid issues
-          # with pg_config being a binary path, not a directory
-          ./configure --with-pgsql-includedir="${PG_INCLUDE}" --with-pgsql-libdir="${PG_LIBDIR}" --with-openssl --with-pam --with-ldap
-          make clean
-          make -C src
-          
-          # Build bctl if Makefile exists (separate build system)
-          if [ -f bctl/Makefile ]; then
-            make -C bctl || echo "Warning: bctl build skipped"
-          else
-            echo "Note: bctl uses separate build system (not integrated with autotools)"
-          fi
-          
-          # Organize build artifacts in release folder structure
-          mkdir -p $HOME/release/${{ matrix.platform }}/pg${{ matrix.pg_version }}
-          if [ "${{ matrix.platform }}" = "macos" ]; then
-            find src -name "*.dylib" -exec cp {} $HOME/release/${{ matrix.platform }}/pg${{ matrix.pg_version }}/ \; 2>/dev/null || true
-          else
-            find src -name "*.so" -exec cp {} $HOME/release/${{ matrix.platform }}/pg${{ matrix.pg_version }}/ \; 2>/dev/null || true
-          fi
-          cp src/pgbalancer $HOME/release/${{ matrix.platform }}/pg${{ matrix.pg_version }}/ 2>/dev/null || true
-          cp bctl/bctl $HOME/release/${{ matrix.platform }}/pg${{ matrix.pg_version }}/ 2>/dev/null || true
-          ls -la $HOME/release/${{ matrix.platform }}/pg${{ matrix.pg_version }}/
-      
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: pgbalancer-${{ matrix.platform }}-pg${{ matrix.pg_version }}
-          path: ~/release/${{ matrix.platform }}/pg${{ matrix.pg_version }}/*
-          retention-days: 30
-          if-no-files-found: warn
-
-  package-deb:
-    name: Package DEB PG-${{ matrix.pg_version }}
-    needs: [prepare, build]
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    
-    strategy:
-      fail-fast: false
-      matrix:
-        pg_version: ${{ fromJson(needs.prepare.outputs.pg_versions) }}
-        os: ['ubuntu:22.04', 'ubuntu:24.04', 'debian:11', 'debian:12']
-    
-    container:
-      image: ${{ matrix.os }}
-      options: --user root
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Build DEB package
-        run: |
-          export DEBIAN_FRONTEND=noninteractive
-          export DEBCONF_NONINTERACTIVE_SEEN=true
-          
-          # Disable documentation
-          mkdir -p /etc/dpkg/dpkg.cfg.d
-          echo 'path-exclude /usr/share/man/*' >> /etc/dpkg/dpkg.cfg.d/01_nodoc || true
-          echo 'path-exclude /usr/share/doc/*' >> /etc/dpkg/dpkg.cfg.d/01_nodoc || true
-          rm -f /var/lib/man-db/auto-update || true
-          
-          # Install dependencies
-          apt-get update
-          apt-get install -y --no-install-recommends wget gnupg2 lsb-release ca-certificates
-          wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
-          echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list
-          apt-get update
-          
-          apt-get install -y --no-install-recommends \
-            build-essential \
-            debhelper \
-            autoconf \
-            automake \
-            libtool \
-            bison \
-            flex \
-            postgresql-server-dev-${{ matrix.pg_version }} \
-            libssl-dev \
-            libmemcached-dev \
-            libpam0g-dev \
-            libldap2-dev \
-            pkg-config
-          
-          # Check if configure exists, if not run autoreconf
-          if [ ! -f ./configure ]; then
-            echo "Running autoreconf to generate configure script..."
-            autoreconf -fi
-          fi
-          
-          # Set PostgreSQL paths
-          export PG_CONFIG=/usr/lib/postgresql/${{ matrix.pg_version }}/bin/pg_config
-          PG_INCLUDE=$($PG_CONFIG --includedir)
-          PG_LIBDIR=$($PG_CONFIG --libdir)
-          export CPPFLAGS="-I${PG_INCLUDE}"
-          export LDFLAGS="-L${PG_LIBDIR}"
-          
-          # Build pgbalancer (actual DEB creation would use debian/ directory structure)
-          ./configure --with-pgsql-includedir="${PG_INCLUDE}" --with-pgsql-libdir="${PG_LIBDIR}" --with-openssl --with-pam --with-ldap
-          make
-          
-          # Organize packages in release folder structure
-          mkdir -p $HOME/release/deb/pg${{ matrix.pg_version }}
-          # Note: Actual DEB creation requires debian/ packaging files
-          ls -la $HOME/release/deb/pg${{ matrix.pg_version }}/
-      
-      - name: Upload DEB artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: deb-$(echo "${{ matrix.os }}" | sed 's/:/-/g')-pg${{ matrix.pg_version }}
-          path: ~/release/deb/pg${{ matrix.pg_version }}/*.deb
-          retention-days: 90
-          if-no-files-found: warn
-
-  package-rpm:
-    name: Package RPM PG-${{ matrix.pg_version }}
-    needs: [prepare, build]
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    
-    strategy:
-      fail-fast: false
-      matrix:
-        pg_version: ${{ fromJson(needs.prepare.outputs.pg_versions) }}
-        os: ['rockylinux:9', 'almalinux:9', 'quay.io/centos/centos:stream9']
-    
-    container:
-      image: ${{ matrix.os }}
-      options: --user root
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Build RPM package
-        run: |
-          export LANG=C
-          export LC_ALL=C
-          
-          # Enable repositories
-          dnf install -y epel-release
-          dnf config-manager --set-enabled crb || crb enable || true
-          
-          # Add PostgreSQL repository
-          ARCH=$(uname -m)
-          dnf install -y --nogpgcheck https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-${ARCH}/pgdg-redhat-repo-latest.noarch.rpm
-          dnf -qy module disable postgresql
-          
-          # Install dependencies
-          dnf install -y --setopt=deltarpm=0 --setopt=install_weak_deps=false \
-            rpm-build \
-            rpmdevtools \
-            redhat-rpm-config \
-            gcc \
-            make \
-            autoconf \
-            automake \
-            libtool \
-            bison \
-            flex \
-            postgresql${{ matrix.pg_version }}-devel \
-            openssl-devel \
-            libmemcached-devel \
-            pam-devel \
-            openldap-devel \
-            pkg-config
-          
-          # Check if configure exists, if not run autoreconf
-          if [ ! -f ./configure ]; then
-            echo "Running autoreconf to generate configure script..."
-            autoreconf -fi
-          fi
-          
-          # Set PostgreSQL paths
-          export PG_CONFIG=/usr/pgsql-${{ matrix.pg_version }}/bin/pg_config
-          PG_INCLUDE=$($PG_CONFIG --includedir)
-          PG_PKGINCLUDE=$($PG_CONFIG --pkgincludedir)
-          PG_LIBDIR=$($PG_CONFIG --libdir)
-          
-          # Rocky may have headers in multiple locations
-          export CPPFLAGS="-I${PG_INCLUDE} -I${PG_PKGINCLUDE}"
-          export LDFLAGS="-L${PG_LIBDIR}"
-          
-          echo "PostgreSQL include: ${PG_INCLUDE}"
-          echo "PostgreSQL pkg include: ${PG_PKGINCLUDE}"
-          echo "Verifying libpq-fe.h..."
-          find /usr -name "libpq-fe.h" 2>/dev/null || echo "Header search complete"
-          
-          # Build pgbalancer (actual RPM creation would use .spec file)
-          rpmdev-setuptree
-          ./configure --with-pgsql-includedir="${PG_INCLUDE}" --with-pgsql-libdir="${PG_LIBDIR}" --with-openssl --with-pam --with-ldap
-          make
-          
-          # Organize packages in release folder structure
-          mkdir -p $HOME/release/rpm/pg${{ matrix.pg_version }}
-          # Note: Actual RPM creation requires .spec file
-          if [ -d ~/rpmbuild/RPMS ]; then
-            find ~/rpmbuild/RPMS -name "*.rpm" -exec cp {} $HOME/release/rpm/pg${{ matrix.pg_version }}/ \; || true
-          fi
-          if [ -d ~/rpmbuild/SRPMS ]; then
-            find ~/rpmbuild/SRPMS -name "*.rpm" -exec cp {} $HOME/release/rpm/pg${{ matrix.pg_version }}/ \; || true
-          fi
-          ls -la $HOME/release/rpm/pg${{ matrix.pg_version }}/
-      
-      - name: Upload RPM artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: rpm-$(echo "${{ matrix.os }}" | sed 's|/|-|g' | sed 's|:|-|g' | sed 's|quay.io-||')-pg${{ matrix.pg_version }}
-          path: ~/release/rpm/pg${{ matrix.pg_version }}/*.rpm
-          retention-days: 90
-          if-no-files-found: warn
-
-  test-packages:
-    name: Test Packages
-    needs: [prepare, package-deb, package-rpm]
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    
-    strategy:
-      fail-fast: false
-      matrix:
-        type: [rpm, deb]
-        pg_version: ['17']
-    
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: ${{ matrix.type }}-*-pg${{ matrix.pg_version }}
-          path: ./packages
-          merge-multiple: true
-      
-      - name: Test RPM installation
-        if: matrix.type == 'rpm'
-        run: |
-          docker run --rm -v $PWD/packages:/pkg rockylinux:9 bash -c "
-            ARCH=\$(uname -m)
-            dnf install -y --nogpgcheck https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-\${ARCH}/pgdg-redhat-repo-latest.noarch.rpm
-            dnf -qy module disable postgresql
-            dnf install -y --nogpgcheck postgresql${{ matrix.pg_version }}-server
-            dnf install -y --nogpgcheck /pkg/*.rpm || true
-            echo '✅ RPM installation test completed'
-          "
-      
-      - name: Test DEB installation
-        if: matrix.type == 'deb'
-        run: |
-          docker run --rm -v $PWD/packages:/pkg -e DEBIAN_FRONTEND=noninteractive ubuntu:22.04 bash -c "
-            apt-get update
-            apt-get install -y wget gnupg2 lsb-release
-            wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
-            echo 'deb [signed-by=/usr/share/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt jammy-pgdg main' > /etc/apt/sources.list.d/pgdg.list
-            apt-get update
-            apt-get install -y postgresql-${{ matrix.pg_version }}
-            dpkg -i /pkg/*.deb || apt-get install -f -y
-            echo '✅ DEB installation test completed'
-          "
-
-  release:
-    name: Create Release
-    needs: [prepare, test-packages]
-    if: ${{ github.event.inputs.create_release == 'true' }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Download all package artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: '{rpm,deb,build}-*'
-          path: artifacts
-      
-      - name: Organize release packages
-        id: packages
-        run: |
-          mkdir -p release
-          find artifacts -name '*.rpm' -exec cp {} release/ \; 2>/dev/null || true
-          find artifacts -name '*.deb' -exec cp {} release/ \; 2>/dev/null || true
-          
-          # Generate checksums only if packages exist
-          cd release
-          PACKAGE_COUNT=$(ls -1 *.rpm *.deb 2>/dev/null | wc -l)
-          
-          if [ "$PACKAGE_COUNT" -gt 0 ]; then
-            sha256sum *.rpm *.deb 2>/dev/null > SHA256SUMS || true
-            echo "📦 Release packages found: $PACKAGE_COUNT"
-            ls -lh
-            echo ""
-            echo "🔐 SHA256 Checksums:"
-            cat SHA256SUMS
-            echo "has_packages=true" >> $GITHUB_OUTPUT
-          else
-            echo "⚠️  Warning: No packages found for release"
-            echo "This is expected if package builds were skipped or failed"
-            echo "has_packages=false" >> $GITHUB_OUTPUT
-          fi
-      
-      - name: Copy packages to local releases directory
-        if: steps.packages.outputs.has_packages == 'true'
-        run: |
-          # Create local releases directory structure
-          RELEASES_DIR="/Users/pgedge/pge/releases"
-          
-          if [ -d "$RELEASES_DIR" ]; then
-            echo "📦 Copying packages to $RELEASES_DIR (organized by PostgreSQL version)"
-            
-            # Function to extract PostgreSQL version from filename
-            extract_pg_version() {
-              local filename="$1"
-              # Try to match patterns like pg16, pg17, postgresql-16, postgresql-17, etc.
-              if [[ "$filename" =~ pg([0-9]+) ]] || [[ "$filename" =~ postgresql-([0-9]+) ]] || [[ "$filename" =~ pg_([0-9]+) ]]; then
-                echo "${BASH_REMATCH[1]}"
-              elif [[ "$filename" =~ -pg([0-9]+) ]]; then
-                echo "${BASH_REMATCH[1]}"
-              else
-                # Try to find version in artifact names
-                for pg_ver in 13 14 15 16 17 18; do
-                  if [[ "$filename" =~ pg${pg_ver} ]] || [[ "$filename" =~ -pg${pg_ver} ]]; then
-                    echo "$pg_ver"
-                    return
-                  fi
-                done
-                # Default to version from artifact name pattern
-                if [[ "$filename" =~ build-.*-pg([0-9]+) ]]; then
-                  echo "${BASH_REMATCH[1]}"
-                elif [[ "$filename" =~ rpm-.*-pg([0-9]+) ]] || [[ "$filename" =~ deb-.*-pg([0-9]+) ]]; then
-                  echo "${BASH_REMATCH[1]}"
-                else
-                  echo ""
-                fi
-              fi
-            }
-            
-            # Copy RPM packages to versioned directories
-            echo "📦 Organizing RPM packages..."
-            find release -name '*.rpm' | while read rpm_file; do
-              filename=$(basename "$rpm_file")
-              pg_version=$(extract_pg_version "$filename")
-              
-              if [ -n "$pg_version" ]; then
-                mkdir -p "$RELEASES_DIR/rpm/pg${pg_version}"
-                cp -v "$rpm_file" "$RELEASES_DIR/rpm/pg${pg_version}/"
-                echo "  ✓ Copied to rpm/pg${pg_version}/"
-              else
-                # Try to find version from artifact directory structure
-                for pg_ver in 13 14 15 16 17 18; do
-                  if [[ "$rpm_file" =~ pg${pg_ver} ]] || find artifacts -path "*pg${pg_ver}*" -name "$(basename $rpm_file)" 2>/dev/null | grep -q .; then
-                    mkdir -p "$RELEASES_DIR/rpm/pg${pg_ver}"
-                    cp -v "$rpm_file" "$RELEASES_DIR/rpm/pg${pg_ver}/"
-                    echo "  ✓ Copied to rpm/pg${pg_ver}/"
-                    break
-                  fi
-                done
-              fi
-            done
-            
-            # Copy DEB packages to versioned directories
-            echo "📦 Organizing DEB packages..."
-            find release -name '*.deb' | while read deb_file; do
-              filename=$(basename "$deb_file")
-              pg_version=$(extract_pg_version "$filename")
-              
-              if [ -n "$pg_version" ]; then
-                mkdir -p "$RELEASES_DIR/deb/pg${pg_version}"
-                cp -v "$deb_file" "$RELEASES_DIR/deb/pg${pg_version}/"
-                echo "  ✓ Copied to deb/pg${pg_version}/"
-              else
-                # Try to find version from artifact directory structure
-                for pg_ver in 13 14 15 16 17 18; do
-                  if [[ "$deb_file" =~ pg${pg_ver} ]] || find artifacts -path "*pg${pg_ver}*" -name "$(basename $deb_file)" 2>/dev/null | grep -q .; then
-                    mkdir -p "$RELEASES_DIR/deb/pg${pg_ver}"
-                    cp -v "$deb_file" "$RELEASES_DIR/deb/pg${pg_ver}/"
-                    echo "  ✓ Copied to deb/pg${pg_ver}/"
-                    break
-                  fi
-                done
-              fi
-            done
-            
-            # Copy macOS artifacts to versioned directories
-            echo "📦 Organizing macOS packages..."
-            find artifacts -name 'build-*-macos-*' -o -name '*-macos-pg*' | while read osx_file; do
-              if [ -f "$osx_file" ]; then
-                filename=$(basename "$osx_file")
-                pg_version=$(extract_pg_version "$filename")
-                
-                if [ -n "$pg_version" ]; then
-                  mkdir -p "$RELEASES_DIR/osx/pg${pg_version}"
-                  cp -v "$osx_file" "$RELEASES_DIR/osx/pg${pg_version}/"
-                  echo "  ✓ Copied to osx/pg${pg_version}/"
-                else
-                  # Extract from artifact path pattern
-                  for pg_ver in 13 14 15 16 17 18; do
-                    if [[ "$osx_file" =~ -pg${pg_ver} ]] || [[ "$osx_file" =~ macos-pg${pg_ver} ]]; then
-                      mkdir -p "$RELEASES_DIR/osx/pg${pg_ver}"
-                      cp -v "$osx_file" "$RELEASES_DIR/osx/pg${pg_ver}/"
-                      echo "  ✓ Copied to osx/pg${pg_ver}/"
-                      break
-                    fi
-                  done
-                fi
-              fi
-            done
-            
-            # Copy checksums to each version directory
-            if [ -f release/SHA256SUMS ]; then
-              echo "📦 Copying checksums..."
-              for pg_ver in 13 14 15 16 17 18; do
-                if [ -d "$RELEASES_DIR/rpm/pg${pg_ver}" ]; then
-                  cp -v release/SHA256SUMS "$RELEASES_DIR/rpm/pg${pg_ver}/" 2>/dev/null || true
-                fi
-                if [ -d "$RELEASES_DIR/deb/pg${pg_ver}" ]; then
-                  cp -v release/SHA256SUMS "$RELEASES_DIR/deb/pg${pg_ver}/" 2>/dev/null || true
-                fi
-                if [ -d "$RELEASES_DIR/osx/pg${pg_ver}" ]; then
-                  cp -v release/SHA256SUMS "$RELEASES_DIR/osx/pg${pg_ver}/" 2>/dev/null || true
-                fi
-              done
-            fi
-            
-            echo ""
-            echo "✅ Packages organized successfully"
-            echo ""
-            echo "📂 Package Summary:"
-            for pg_ver in 13 14 15 16 17 18; do
-              if [ -d "$RELEASES_DIR/rpm/pg${pg_ver}" ]; then
-                echo "  PostgreSQL ${pg_ver}:"
-                echo "    RPM: $(ls -1 "$RELEASES_DIR/rpm/pg${pg_ver}"/*.rpm 2>/dev/null | wc -l) packages"
-                echo "    DEB: $(ls -1 "$RELEASES_DIR/deb/pg${pg_ver}"/*.deb 2>/dev/null | wc -l) packages"
-                echo "    macOS: $(ls -1 "$RELEASES_DIR/osx/pg${pg_ver}" 2>/dev/null | wc -l) packages"
-              fi
-            done
-          else
-            echo "⚠️  Warning: Releases directory not found at $RELEASES_DIR"
-            echo "This step will be skipped in GitHub Actions runners"
-          fi
-      
-      - name: Create GitHub Release
-        if: steps.packages.outputs.has_packages == 'true'
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ github.event.inputs.release_tag }}
-          name: pgbalancer ${{ needs.prepare.outputs.version }}
-          files: |
-            release/*.rpm
-            release/*.deb
-            release/SHA256SUMS
-          body: |
-            ## pgbalancer ${{ needs.prepare.outputs.version }}-${{ needs.prepare.outputs.release }}
-            
-            Modern PostgreSQL Connection Pooler with REST API
-            
-            ### 📦 Packages
-            
-            - **PostgreSQL versions**: 16, 17, 18
-            - **RPM**: RHEL/CentOS Stream 9, Rocky Linux 9, AlmaLinux 9
-            - **DEB**: Ubuntu 22.04/24.04, Debian 11/12
-            
-            ### 🚀 Installation
-            
-            **RPM (RHEL/Rocky/AlmaLinux):**
-            ```bash
-            sudo dnf install pgbalancer_17-*.rpm
-            ```
-            
-            **DEB (Ubuntu/Debian):**
-            ```bash
-            sudo dpkg -i postgresql-17-pgbalancer_*.deb
-            sudo apt-get install -f
-            ```
-            
-            ### ✨ Features
-            
-            - REST API (17 endpoints)
-            - AI Load Balancing
-            - bctl CLI tool
-            - MQTT clustering
-            - Connection pooling
-            - JWT authentication
-            
-            ### 📚 Documentation
-            
-            - **Quick Start**: https://pgelephant.github.io/pgbalancer/
-            - **REST API**: https://www.pgelephant.com/pgbalancer
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   summary:
     name: Build Summary
@@ -782,3 +261,191 @@ jobs:
           
           Build matrix completed!
           EOF
+
+  release:
+    name: Create Release
+    needs: [prepare, build]
+    if: ${{ github.event.inputs.create_release == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: 'pgbalancer-*'
+          path: artifacts
+      
+      - name: Organize release packages
+        id: packages
+        run: |
+          mkdir -p release
+          find artifacts -name '*.so' -exec cp {} release/ \; 2>/dev/null || true
+          find artifacts -name '*.dylib' -exec cp {} release/ \; 2>/dev/null || true
+          find artifacts -name 'pgbalancer' -type f -exec cp {} release/ \; 2>/dev/null || true
+          find artifacts -name 'bctl' -type f -exec cp {} release/ \; 2>/dev/null || true
+          
+          cd release
+          PACKAGE_COUNT=$(ls -1 2>/dev/null | wc -l)
+          
+          if [ "$PACKAGE_COUNT" -gt 0 ]; then
+            sha256sum * 2>/dev/null > SHA256SUMS || true
+            echo "📦 Release packages found: $PACKAGE_COUNT"
+            ls -lh
+            echo "has_packages=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️  Warning: No packages found for release"
+            echo "has_packages=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Copy packages to local releases directory
+        if: steps.packages.outputs.has_packages == 'true' && runner.os != 'Linux'
+        continue-on-error: true
+        run: |
+          RELEASES_DIR="/Users/pgedge/pge/releases"
+          
+          # Skip on GitHub Actions runners
+          if [ ! -w "/Users/pgedge" ] && [ ! -w "/Users" ]; then
+            echo "⚠️  Skipping: Not running on local machine (GitHub Actions runner detected)"
+            exit 0
+          fi
+          
+          # Create releases directory if it doesn't exist
+          if [ ! -d "$RELEASES_DIR" ]; then
+            echo "📦 Creating releases directory structure at $RELEASES_DIR"
+            mkdir -p "$RELEASES_DIR"/{deb,rpm,osx}/{pg13,pg14,pg15,pg16,pg17,pg18}
+          fi
+          
+          echo "📦 Copying pgbalancer packages to $RELEASES_DIR (organized by PostgreSQL version)"
+            
+            extract_pg_version() {
+              local filename="$1"
+              if [[ "$filename" =~ pg([0-9]+) ]] || [[ "$filename" =~ postgresql-([0-9]+) ]] || [[ "$filename" =~ pg_([0-9]+) ]]; then
+                echo "${BASH_REMATCH[1]}"
+              elif [[ "$filename" =~ -pg([0-9]+) ]]; then
+                echo "${BASH_REMATCH[1]}"
+              else
+                for pg_ver in 13 14 15 16 17 18; do
+                  if [[ "$filename" =~ pg${pg_ver} ]] || [[ "$filename" =~ -pg${pg_ver} ]]; then
+                    echo "$pg_ver"
+                    return
+                  fi
+                done
+                if [[ "$filename" =~ pgbalancer-.*-pg([0-9]+) ]]; then
+                  echo "${BASH_REMATCH[1]}"
+                else
+                  echo ""
+                fi
+              fi
+            }
+            
+            echo "📦 Organizing packages by PostgreSQL version..."
+            find artifacts -type f | while read artifact_file; do
+              filename=$(basename "$artifact_file")
+              
+              # Extract from artifact directory name (e.g., pgbalancer-ubuntu-pg17)
+              artifact_dir=$(dirname "$artifact_file")
+              if [[ "$artifact_dir" =~ pgbalancer-([a-z]+)-pg([0-9]+) ]]; then
+                platform="${BASH_REMATCH[1]}"
+                pg_version="${BASH_REMATCH[2]}"
+                
+                # Map platform to release directory
+                case "$platform" in
+                  ubuntu)
+                    release_platform="deb"
+                    ;;
+                  rocky)
+                    release_platform="rpm"
+                    ;;
+                  macos)
+                    release_platform="osx"
+                    ;;
+                  *)
+                    release_platform="$platform"
+                    ;;
+                esac
+                
+                mkdir -p "$RELEASES_DIR/$release_platform/pg${pg_version}"
+                cp -v "$artifact_file" "$RELEASES_DIR/$release_platform/pg${pg_version}/"
+                echo "  ✓ Copied $(basename $artifact_file) to $release_platform/pg${pg_version}/"
+              fi
+            done
+            
+            if [ -f release/SHA256SUMS ]; then
+              echo "📦 Copying checksums..."
+              for pg_ver in 13 14 15 16 17 18; do
+                [ -d "$RELEASES_DIR/rpm/pg${pg_ver}" ] && cp release/SHA256SUMS "$RELEASES_DIR/rpm/pg${pg_ver}/" 2>/dev/null || true
+                [ -d "$RELEASES_DIR/deb/pg${pg_ver}" ] && cp release/SHA256SUMS "$RELEASES_DIR/deb/pg${pg_ver}/" 2>/dev/null || true
+                [ -d "$RELEASES_DIR/osx/pg${pg_ver}" ] && cp release/SHA256SUMS "$RELEASES_DIR/osx/pg${pg_ver}/" 2>/dev/null || true
+              done
+            fi
+            
+            echo ""
+            echo "✅ pgbalancer packages organized successfully"
+            echo ""
+            echo "📂 Package Summary:"
+            for pg_ver in 13 14 15 16 17 18; do
+              if [ -d "$RELEASES_DIR/rpm/pg${pg_ver}" ] || [ -d "$RELEASES_DIR/deb/pg${pg_ver}" ] || [ -d "$RELEASES_DIR/osx/pg${pg_ver}" ]; then
+                echo "  PostgreSQL ${pg_ver}:"
+                echo "    RPM: $(ls -1 "$RELEASES_DIR/rpm/pg${pg_ver}" 2>/dev/null | wc -l) files"
+                echo "    DEB: $(ls -1 "$RELEASES_DIR/deb/pg${pg_ver}" 2>/dev/null | wc -l) files"
+                echo "    macOS: $(ls -1 "$RELEASES_DIR/osx/pg${pg_ver}" 2>/dev/null | wc -l) files"
+              fi
+            done
+      
+      - name: Create GitHub Release
+        if: steps.packages.outputs.has_packages == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.release_tag }}
+          name: pgbalancer ${{ needs.prepare.outputs.version }}
+          files: |
+            release/*
+          body: |
+            ## pgbalancer ${{ needs.prepare.outputs.version }}-${{ needs.prepare.outputs.release }}
+            
+            Modern PostgreSQL Connection Pooler with REST API
+            
+            ### 📦 Build Artifacts
+            
+            - **PostgreSQL versions**: 16, 17, 18
+            - **Platforms**: Ubuntu, Rocky Linux, macOS
+            - **Binaries**: pgbalancer (server), bctl (CLI tool)
+            
+            ### 🚀 Installation
+            
+            ```bash
+            # Build from source
+            autoreconf -fi
+            ./configure --with-openssl --with-pam --with-ldap
+            make
+            sudo make install
+            ```
+            
+            ### ✨ Features
+            
+            - REST API (17 endpoints)
+            - AI Load Balancing
+            - bctl CLI tool
+            - MQTT clustering
+            - Connection pooling
+            - JWT authentication
+            
+            ### 📚 Documentation
+            
+            - **Quick Start**: https://pgelephant.github.io/pgbalancer/
+            - **REST API**: https://www.pgelephant.com/pgbalancer
+            
+            ### ✅ Verification
+            
+            ```bash
+            sha256sum -c SHA256SUMS
+            ```
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
