@@ -264,8 +264,8 @@ do_worker_child(void *params)
 						{
 							int			n;
 
-							ereport(LOG,
-									(errmsg("pgpool_worker_child: invalid node found %d", i)));
+						ereport(LOG,
+								(errmsg("pgbalancer_worker_child: invalid node found %d", i)));
 
 							/*
 							 * If detach_false_primary is enabled, send

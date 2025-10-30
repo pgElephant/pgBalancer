@@ -252,7 +252,7 @@ init_ps_display(const char *username, const char *dbname,
 	snprintf(ps_buffer, ps_buffer_size, "");
 #else
 	snprintf(ps_buffer, ps_buffer_size,
-			 "pgpool: ");
+			 "pgbalancer: ");
 #endif
 
 	ps_buffer_fixed_size = strlen(ps_buffer);

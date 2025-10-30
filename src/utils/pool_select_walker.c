@@ -1033,12 +1033,12 @@ pool_has_pgpool_regclass(void)
 		relcache = pool_create_relcache(pool_config->relcache_size, HASPGPOOL_REGCLASSQUERY,
 										int_register_func, int_unregister_func,
 										false);
-		if (relcache == NULL)
-		{
-			ereport(WARNING,
-					(errmsg("unable to create relcache, while checking pgpool regclass presence")));
-			return false;
-		}
+	if (relcache == NULL)
+	{
+		ereport(WARNING,
+				(errmsg("unable to create relcache, while checking pgbalancer regclass presence")));
+		return false;
+	}
 	}
 
 	result = pool_search_relcache(relcache, backend, user) == 0 ? 0 : 1;

@@ -63,11 +63,11 @@ pgpool_recovery(PG_FUNCTION_ARGS)
 
 	if (!superuser())
 #ifdef ERRCODE_INSUFFICIENT_PRIVILEGE
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 (errmsg("must be superuser to use pgpool_recovery function"))));
+	ereport(ERROR,
+			(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+			 (errmsg("must be superuser to use pgbalancer_recovery function"))));
 #else
-		elog(ERROR, "must be superuser to use pgpool_recovery function");
+	elog(ERROR, "must be superuser to use pgbalancer_recovery function");
 #endif
 
 	if (PG_NARGS() >= 7)		/* Pgbalancer 4.3 or later */
@@ -181,11 +181,11 @@ pgpool_pgctl(PG_FUNCTION_ARGS)
 
 	if (!superuser())
 #ifdef ERRCODE_INSUFFICIENT_PRIVILEGE
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 (errmsg("must be superuser to use pgpool_pgctl function"))));
+	ereport(ERROR,
+			(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+			 (errmsg("must be superuser to use pgbalancer_pgctl function"))));
 #else
-		elog(ERROR, "must be superuser to use pgpool_pgctl function");
+	elog(ERROR, "must be superuser to use pgbalancer_pgctl function");
 #endif
 
 #if defined(PG_VERSION_NUM) && (PG_VERSION_NUM >= 90600)

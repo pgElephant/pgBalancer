@@ -681,7 +681,7 @@ is_wd_lifecheck_ready(void)
 			{
 				ereport(DEBUG1,
 						(errmsg("watchdog checking life check is ready"),
-						 errdetail("pgpool:%d at \"%s:%d\" has not started yet",
+						 errdetail("pgbalancer:%d at \"%s:%d\" has not started yet",
 								   i, node->hostName, node->pgpoolPort)));
 				rtn = WD_NG;
 			}
@@ -697,7 +697,7 @@ is_wd_lifecheck_ready(void)
 			{
 				ereport(DEBUG1,
 						(errmsg("watchdog checking life check is ready"),
-						 errdetail("pgpool:%d at \"%s:%d\" has not received from or sent to the heartbeat signal yet",
+						 errdetail("pgbalancer:%d at \"%s:%d\" has not received from or sent to the heartbeat signal yet",
 								   i, node->hostName, node->pgpoolPort)));
 				rtn = WD_NG;
 			}
@@ -787,8 +787,8 @@ check_pgpool_status_by_hb(void)
 	{
 		node->nodeState = NODE_DEAD;
 		ereport(LOG,
-				(errmsg("checking pgpool status by heartbeat"),
-				 errdetail("lifecheck failed. pgpool (%s:%d) seems not to be working",
+				(errmsg("checking pgbalancer status by heartbeat"),
+				 errdetail("lifecheck failed. pgbalancer (%s:%d) seems not to be working",
 						   node->hostName, node->pgpoolPort)));
 
 		inform_node_status(node, "parent process is dead");
@@ -801,14 +801,14 @@ check_pgpool_status_by_hb(void)
 		node = &gslifeCheckCluster->lifeCheckNodes[i];
 		ereport(DEBUG1,
 				(errmsg("watchdog life checking by heartbeat"),
-				 errdetail("checking pgpool %d (%s:%d)",
+				 errdetail("checking pgbalancer %d (%s:%d)",
 						   i, node->hostName, node->pgpoolPort)));
 
 		if (wd_check_heartbeat(node) == WD_NG)
 		{
 			ereport(DEBUG2,
-					(errmsg("checking pgpool status by heartbeat"),
-					 errdetail("lifecheck failed. pgpool: %d at \"%s:%d\" seems not to be working",
+					(errmsg("checking pgbalancer status by heartbeat"),
+					 errdetail("lifecheck failed. pgbalancer: %d at \"%s:%d\" seems not to be working",
 							   i, node->hostName, node->pgpoolPort)));
 
 			if (node->nodeState != NODE_DEAD)
@@ -820,7 +820,7 @@ check_pgpool_status_by_hb(void)
 		else
 		{
 			ereport(DEBUG1,
-					(errmsg("checking pgpool status by heartbeat"),
+					(errmsg("checking pgbalancer status by heartbeat"),
 					 errdetail("OK; status OK")));
 		}
 	}
@@ -852,7 +852,7 @@ check_pgpool_status_by_query(void)
 		if (rc)
 		{
 			ereport(WARNING,
-					(errmsg("failed to create thread for checking pgpool status by query for  %d (%s:%d)",
+					(errmsg("failed to create thread for checking pgbalancer status by query for  %d (%s:%d)",
 							i, node->hostName, node->pgpoolPort),
 					 errdetail("pthread_create failed with error code %d: %s", rc, strerror(rc))));
 		}
@@ -868,8 +868,8 @@ check_pgpool_status_by_query(void)
 		node = &gslifeCheckCluster->lifeCheckNodes[i];
 
 		ereport(DEBUG1,
-				(errmsg("checking pgpool status by query"),
-				 errdetail("checking pgpool %d (%s:%d)",
+				(errmsg("checking pgbalancer status by query"),
+				 errdetail("checking pgbalancer %d (%s:%d)",
 						   i, node->hostName, node->pgpoolPort)));
 
 		rc = pthread_join(thread[i], (void **) &result);
@@ -882,7 +882,7 @@ check_pgpool_status_by_query(void)
 		if (result == WD_OK)
 		{
 			ereport(DEBUG1,
-					(errmsg("checking pgpool status by query"),
+					(errmsg("checking pgbalancer status by query"),
 					 errdetail("WD_OK: status: %d", node->nodeState)));
 
 			/* life point init */
@@ -891,19 +891,19 @@ check_pgpool_status_by_query(void)
 		else
 		{
 			ereport(DEBUG1,
-					(errmsg("checking pgpool status by query"),
+					(errmsg("checking pgbalancer status by query"),
 					 errdetail("NG; status: %d life:%d", node->nodeState, node->retry_lives)));
 			if (node->retry_lives > 0)
 			{
 				node->retry_lives--;
 			}
 
-			/* pgpool goes down */
+			/* pgbalancer goes down */
 			if (node->retry_lives <= 0)
 			{
 				ereport(LOG,
-						(errmsg("checking pgpool status by query"),
-						 errdetail("lifecheck failed %d times. pgpool %d (%s:%d) seems not to be working",
+						(errmsg("checking pgbalancer status by query"),
+						 errdetail("lifecheck failed %d times. pgbalancer %d (%s:%d) seems not to be working",
 								   pool_config->wd_life_point, i, node->hostName, node->pgpoolPort)));
 
 				if (node->nodeState == NODE_DEAD)
@@ -998,8 +998,8 @@ wd_check_heartbeat(LifeCheckNode *node)
 		!WD_TIME_ISSET(node->hb_send_time))
 	{
 		ereport(DEBUG1,
-				(errmsg("watchdog checking if pgpool is alive using heartbeat"),
-				 errdetail("pgpool (%s:%d) was restarted and has not send the heartbeat signal yet",
+				(errmsg("watchdog checking if pgbalancer is alive using heartbeat"),
+				 errdetail("pgbalancer (%s:%d) was restarted and has not send the heartbeat signal yet",
 						   node->hostName, node->pgpoolPort)));
 		return WD_OK;
 	}
@@ -1008,7 +1008,7 @@ wd_check_heartbeat(LifeCheckNode *node)
 
 	interval = WD_TIME_DIFF_SEC(tv, node->hb_last_recv_time);
 	ereport(DEBUG1,
-			(errmsg("watchdog checking if pgpool is alive using heartbeat"),
+			(errmsg("watchdog checking if pgbalancer is alive using heartbeat"),
 			 errdetail("the last heartbeat from \"%s:%d\" received %d seconds ago",
 					   node->hostName, node->pgpoolPort, interval)));
 

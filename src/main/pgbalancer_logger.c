@@ -126,7 +126,7 @@ SysLoggerMain(int argc, char *argv[])
 
 
 	init_ps_display("", "", "", "");
-	set_ps_display("PgpoolLogger", false);
+	set_ps_display("PgbalancerLogger", false);
 
 	/*
 	 * If we restarted, our stderr is already redirected into our own input

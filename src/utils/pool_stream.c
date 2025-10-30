@@ -757,13 +757,13 @@ pool_flush(POOL_CONNECTION *cp)
 			 * processing with backends to keep consistency among backends,
 			 * thus ignore error.
 			 */
-			if (REPLICATION)
-				ereport(NOTICE,
-						(errmsg("unable to flush data to frontend"),
-						 errdetail("pgpool is in replication mode, ignoring error to keep consistency among backends")));
-			else
-				ereport(FRONTEND_DEBUG,
-						(errmsg("unable to flush data to frontend")));
+		if (REPLICATION)
+			ereport(NOTICE,
+					(errmsg("unable to flush data to frontend"),
+					 errdetail("pgbalancer is in replication mode, ignoring error to keep consistency among backends")));
+		else
+			ereport(FRONTEND_DEBUG,
+					(errmsg("unable to flush data to frontend")));
 
 		}
 	}
