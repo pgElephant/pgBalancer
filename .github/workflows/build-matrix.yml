@@ -83,7 +83,6 @@ jobs:
           PG_VERSIONS='${{ steps.pg_versions.outputs.matrix }}'
           PLATFORMS='${{ steps.platforms.outputs.matrix }}'
           
-          # Generate cross product of platforms and PG versions
           MATRIX=$(jq -nc \
             --argjson pg "$PG_VERSIONS" \
             --argjson plat "$PLATFORMS" \
@@ -113,19 +112,16 @@ jobs:
         run: |
           export DEBIAN_FRONTEND=noninteractive
           
-          # Disable man-db triggers
           sudo mkdir -p /etc/dpkg/dpkg.cfg.d || true
           echo 'path-exclude /usr/share/man/*' | sudo tee -a /etc/dpkg/dpkg.cfg.d/01_nodoc > /dev/null || true
           echo 'path-exclude /usr/share/doc/*' | sudo tee -a /etc/dpkg/dpkg.cfg.d/01_nodoc > /dev/null || true
           sudo rm -f /var/lib/man-db/auto-update || true
           
-          # Add PostgreSQL APT repository
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends wget gnupg2 lsb-release ca-certificates
           wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor | sudo tee /usr/share/keyrings/postgresql.gpg > /dev/null
           echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           
-          # Install build dependencies
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential \
@@ -143,7 +139,6 @@ jobs:
         if: matrix.platform == 'macos'
         run: |
           brew install postgresql@${{ matrix.pg_version }} openssl libmemcached autoconf automake libtool bison flex
-          # Use Homebrew bison instead of Xcode bison
           echo "/opt/homebrew/opt/bison/bin" >> $GITHUB_PATH
           echo "/opt/homebrew/opt/flex/bin" >> $GITHUB_PATH
           echo "/opt/homebrew/opt/postgresql@${{ matrix.pg_version }}/bin" >> $GITHUB_PATH
@@ -154,26 +149,20 @@ jobs:
           export LANG=C
           export LC_ALL=C
           
-          # Check if we need sudo
           if command -v sudo &> /dev/null && [ "$(id -u)" != "0" ]; then
             SUDO="sudo"
           else
             SUDO=""
           fi
           
-          # Enable EPEL and PowerTools
           $SUDO dnf install -y epel-release
           $SUDO dnf config-manager --set-enabled crb || $SUDO crb enable || true
           
-          # Add PostgreSQL repository
           ARCH=$(uname -m)
           $SUDO dnf install -y --nogpgcheck https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-${ARCH}/pgdg-redhat-repo-latest.noarch.rpm
           $SUDO dnf -qy module disable postgresql
-          
-          # Update to refresh package lists
           $SUDO dnf update -y
           
-          # Install build dependencies
           $SUDO dnf install -y --setopt=deltarpm=0 --setopt=install_weak_deps=false \
             gcc \
             make \
@@ -190,56 +179,67 @@ jobs:
             pam-devel \
             openldap-devel \
             pkg-config
-          
-          # Verify PostgreSQL is installed
-          echo "Verifying PostgreSQL installation..."
-          $SUDO find /usr -name "pg_config" 2>/dev/null || echo "pg_config not found"
-          $SUDO ls -la /usr/pgsql-${{ matrix.pg_version }}/bin/pg_config || echo "PostgreSQL binaries not in expected location"
       
       - name: Build pgbalancer
         run: |
-          # Set PG_CONFIG based on platform
           if [ "${{ matrix.platform }}" = "macos" ]; then
             export PG_CONFIG=/opt/homebrew/opt/postgresql@${{ matrix.pg_version }}/bin/pg_config
-            # Set OpenSSL and PostgreSQL paths for macOS
             PG_INCLUDE=$($PG_CONFIG --includedir)
             PG_LIBDIR=$($PG_CONFIG --libdir)
             export CPPFLAGS="-I/opt/homebrew/opt/openssl/include -I${PG_INCLUDE}"
             export LDFLAGS="-L/opt/homebrew/opt/openssl/lib -L${PG_LIBDIR}"
           elif [ "${{ matrix.platform }}" = "rocky" ]; then
-            # Try different PostgreSQL paths
             if [ -f /usr/pgsql-${{ matrix.pg_version }}/bin/pg_config ]; then
               export PG_CONFIG=/usr/pgsql-${{ matrix.pg_version }}/bin/pg_config
             elif [ -f /usr/bin/pg_config ]; then
               export PG_CONFIG=/usr/bin/pg_config
             else
-              echo "Error: pg_config not found. Searching..."
+              echo "Error: pg_config not found"
               find /usr -name "pg_config" 2>/dev/null
               exit 1
             fi
-            echo "Using PG_CONFIG: $PG_CONFIG"
-            $PG_CONFIG --version
-            
-            # Set PostgreSQL paths for Rocky
             PG_INCLUDE=$($PG_CONFIG --includedir)
             PG_PKGINCLUDE=$($PG_CONFIG --pkgincludedir)
             PG_LIBDIR=$($PG_CONFIG --libdir)
-            
-            # Rocky may have headers in multiple locations
             export CPPFLAGS="-I${PG_INCLUDE} -I${PG_PKGINCLUDE}"
             export LDFLAGS="-L${PG_LIBDIR}"
-            
-            echo "PostgreSQL include: ${PG_INCLUDE}"
-            echo "PostgreSQL pkg include: ${PG_PKGINCLUDE}"
-            echo "PostgreSQL libdir: ${PG_LIBDIR}"
-            
-            # Verify libpq-fe.h exists
-            if [ -f "${PG_INCLUDE}/libpq-fe.h" ]; then
-              echo "✓ Found libpq-fe.h in ${PG_INCLUDE}"
-            elif [ -f "${PG_PKGINCLUDE}/libpq-fe.h" ]; then
-              echo "✓ Found libpq-fe.h in ${PG_PKGINCLUDE}"
-            else
-              echo "⚠ Warning: libpq-fe.h not found, searching..."
+          else
+            export PG_CONFIG=/usr/lib/postgresql/${{ matrix.pg_version }}/bin/pg_config
+            PG_INCLUDE=$($PG_CONFIG --includedir)
+            PG_LIBDIR=$($PG_CONFIG --libdir)
+            export CPPFLAGS="-I${PG_INCLUDE}"
+            export LDFLAGS="-L${PG_LIBDIR}"
+          fi
+          
+          if [ ! -f ./configure ]; then
+            autoreconf -fi
+          fi
+          
+          ./configure --with-pgsql-includedir="${PG_INCLUDE}" --with-pgsql-libdir="${PG_LIBDIR}" --with-openssl --with-pam --with-ldap
+          make clean
+          make -C src
+          
+          if [ -f bctl/Makefile ]; then
+            make -C bctl || echo "Warning: bctl build skipped"
+          fi
+          
+          mkdir -p $HOME/release/${{ matrix.platform }}/pg${{ matrix.pg_version }}
+          if [ "${{ matrix.platform }}" = "macos" ]; then
+            find src -name "*.dylib" -exec cp {} $HOME/release/${{ matrix.platform }}/pg${{ matrix.pg_version }}/ \; 2>/dev/null || true
+          else
+            find src -name "*.so" -exec cp {} $HOME/release/${{ matrix.platform }}/pg${{ matrix.pg_version }}/ \; 2>/dev/null || true
+          fi
+          cp src/pgbalancer $HOME/release/${{ matrix.platform }}/pg${{ matrix.pg_version }}/ 2>/dev/null || true
+          cp bctl/bctl $HOME/release/${{ matrix.platform }}/pg${{ matrix.pg_version }}/ 2>/dev/null || true
+          ls -la $HOME/release/${{ matrix.platform }}/pg${{ matrix.pg_version }}/
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pgbalancer-${{ matrix.platform }}-pg${{ matrix.pg_version }}
+          path: ~/release/${{ matrix.platform }}/pg${{ matrix.pg_version }}/*
+          retention-days: 30
+          if-no-files-found: warn
 
   summary:
     name: Build Summary
